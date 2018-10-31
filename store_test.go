@@ -60,3 +60,28 @@ func TestStoreConcurrentAccess(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func BenchmarkStoreSet(b *testing.B) {
+	b.ReportAllocs()
+
+	e := setUpTestEnvironment(b)
+	defer e.tearDown()
+
+	b.ResetTimer()
+	for index := 0; index < b.N; index++ {
+		e.storeOne.Set(testKey, testValue)
+	}
+}
+
+func BenchmarkStoreGet(b *testing.B) {
+	b.ReportAllocs()
+
+	e := setUpTestEnvironment(b)
+	defer e.tearDown()
+	e.storeOne.Set(testKey, testValue)
+
+	b.ResetTimer()
+	for index := 0; index < b.N; index++ {
+		e.storeOne.Get(testKey)
+	}
+}
