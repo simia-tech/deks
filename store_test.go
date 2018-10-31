@@ -1,7 +1,9 @@
 package edkvs_test
 
 import (
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,4 +38,25 @@ func TestStoreDelete(t *testing.T) {
 	require.NoError(t, e.storeOne.Delete(testKey))
 
 	assert.Equal(t, e.storeOne.Len(), 0)
+}
+
+func TestStoreConcurrentAccess(t *testing.T) {
+	e := setUpTestEnvironment(t)
+	defer e.tearDown()
+
+	wg := sync.WaitGroup{}
+	for index := 0; index < 10; index++ {
+		wg.Add(1)
+		go func() {
+			time.Sleep(10 * time.Millisecond)
+			e.storeOne.Set(testKey, testValue)
+			time.Sleep(10 * time.Millisecond)
+			e.storeOne.Get(testKey)
+			time.Sleep(10 * time.Millisecond)
+			e.storeOne.Delete(testKey)
+			time.Sleep(10 * time.Millisecond)
+			wg.Done()
+		}()
+	}
+	wg.Wait()
 }
