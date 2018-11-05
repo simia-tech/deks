@@ -25,25 +25,27 @@ func NewSet() *Set {
 	return &Set{prefixTree: prefixTree}
 }
 
-func (s *Set) Insert(item []byte) error {
-	if err := s.prefixTree.Insert(conflux.Zb(p, item)); err != nil {
+func (s *Set) Insert(item Item) error {
+	if err := s.prefixTree.Insert(conflux.Zb(p, item[:])); err != nil {
 		return errx.Annotatef(err, "insert")
 	}
 	return nil
 }
 
-func (s *Set) Remove(item []byte) error {
-	if err := s.prefixTree.Remove(conflux.Zb(p, item)); err != nil {
+func (s *Set) Remove(item Item) error {
+	if err := s.prefixTree.Remove(conflux.Zb(p, item[:])); err != nil {
 		return errx.Annotatef(err, "remove")
 	}
 	return nil
 }
 
-func (s *Set) Items() [][]byte {
+func (s *Set) Items() []Item {
 	items := s.prefixTree.Items()
-	results := make([][]byte, len(items))
+	results := make([]Item, len(items))
 	for index, item := range items {
-		results[index] = item.Bytes()
+		i := Item{}
+		copy(i[:], item.Bytes())
+		results[index] = i
 	}
 	return results
 }
@@ -51,3 +53,7 @@ func (s *Set) Items() [][]byte {
 func (s *Set) Len() int {
 	return s.prefixTree.Len()
 }
+
+const ItemSize = keySize + 8
+
+type Item [ItemSize]byte

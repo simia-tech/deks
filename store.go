@@ -1,13 +1,18 @@
 package edkvs
 
 import (
+	"crypto/sha1"
 	"encoding/binary"
 	"sync"
 	"time"
 )
 
+const keySize = 20
+
+type key [keySize]byte
+
 type Store struct {
-	items        map[string]*item
+	items        map[key]*item
 	itemsRWMutex sync.RWMutex
 	state        *Set
 	count        int
@@ -15,27 +20,27 @@ type Store struct {
 
 func NewStore() *Store {
 	return &Store{
-		items: make(map[string]*item),
+		items: make(map[key]*item),
 		state: NewSet(),
 		count: 0,
 	}
 }
 
 func (s *Store) Set(key, value []byte) error {
-	keyString := string(key)
+	k := mapKey(key)
 	s.itemsRWMutex.Lock()
-	if i, ok := s.items[keyString]; ok {
-		s.state.Remove(stateItem(key, i.revision))
+	if i, ok := s.items[k]; ok {
+		s.state.Remove(stateItem(k, i.revision))
 		i.value = value
 		i.revision++
 		if !i.deletedAt.IsZero() {
 			i.deletedAt = time.Time{}
 			s.count++
 		}
-		s.state.Insert(stateItem(key, i.revision))
+		s.state.Insert(stateItem(k, i.revision))
 	} else {
-		s.items[keyString] = &item{value: value, revision: 0, deletedAt: time.Time{}}
-		s.state.Insert(stateItem(key, 0))
+		s.items[k] = &item{value: value, revision: 0, deletedAt: time.Time{}}
+		s.state.Insert(stateItem(k, 0))
 		s.count++
 	}
 	s.itemsRWMutex.Unlock()
@@ -43,9 +48,9 @@ func (s *Store) Set(key, value []byte) error {
 }
 
 func (s *Store) Get(key []byte) ([]byte, error) {
+	k := mapKey(key)
 	s.itemsRWMutex.RLock()
-
-	i, ok := s.items[string(key)]
+	i, ok := s.items[k]
 	if ok {
 		value := i.value
 		s.itemsRWMutex.RUnlock()
@@ -56,14 +61,14 @@ func (s *Store) Get(key []byte) ([]byte, error) {
 }
 
 func (s *Store) Delete(key []byte) error {
-	keyString := string(key)
+	k := mapKey(key)
 	s.itemsRWMutex.Lock()
-	if i, ok := s.items[keyString]; ok {
-		s.state.Remove(stateItem(key, i.revision))
+	if i, ok := s.items[k]; ok {
+		s.state.Remove(stateItem(k, i.revision))
 		i.value = nil
 		i.deletedAt = time.Now()
 		i.revision++
-		s.state.Insert(stateItem(key, i.revision))
+		s.state.Insert(stateItem(k, i.revision))
 		s.count--
 	}
 	s.itemsRWMutex.Unlock()
@@ -84,8 +89,16 @@ type item struct {
 	deletedAt time.Time
 }
 
-func stateItem(key []byte, revision uint64) []byte {
-	revisionBytes := make([]byte, 8)
-	binary.LittleEndian.PutUint64(revisionBytes, revision)
-	return append(key, revisionBytes...)
+func mapKey(k []byte) key {
+	hash := sha1.Sum(k)
+	result := key{}
+	copy(result[:], hash[:keySize])
+	return result
+}
+
+func stateItem(key key, revision uint64) Item {
+	result := Item{}
+	copy(result[:keySize], key[:])
+	binary.BigEndian.PutUint64(result[keySize:], revision)
+	return result
 }
