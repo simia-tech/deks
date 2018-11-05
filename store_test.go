@@ -9,13 +9,42 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestStoreSet(t *testing.T) {
+func TestStoreSetNewValue(t *testing.T) {
 	e := setUpTestEnvironment(t)
 	defer e.tearDown()
 
 	require.NoError(t, e.storeOne.Set(testKey, testValue))
 
-	assert.Equal(t, e.storeOne.Len(), 1)
+	assert.Equal(t, 1, e.storeOne.Len())
+	require.Equal(t, 1, e.storeOne.State().Len())
+	assert.Equal(t, [][]byte{{0x6b, 0x65, 0x79}}, e.storeOne.State().Items())
+}
+
+func TestStoreSetExistingValue(t *testing.T) {
+	e := setUpTestEnvironment(t)
+	defer e.tearDown()
+
+	require.NoError(t, e.storeOne.Set(testKey, testValue))
+
+	require.NoError(t, e.storeOne.Set(testKey, testValue))
+
+	assert.Equal(t, 1, e.storeOne.Len())
+	require.Equal(t, 1, e.storeOne.State().Len())
+	assert.Equal(t, [][]byte{{0x6b, 0x65, 0x79, 0x01}}, e.storeOne.State().Items())
+}
+
+func TestStoreSetDeletedValue(t *testing.T) {
+	e := setUpTestEnvironment(t)
+	defer e.tearDown()
+
+	require.NoError(t, e.storeOne.Set(testKey, testValue))
+	require.NoError(t, e.storeOne.Delete(testKey))
+
+	require.NoError(t, e.storeOne.Set(testKey, testValue))
+
+	assert.Equal(t, 1, e.storeOne.Len())
+	require.Equal(t, 1, e.storeOne.State().Len())
+	assert.Equal(t, [][]byte{{0x6b, 0x65, 0x79, 0x02}}, e.storeOne.State().Items())
 }
 
 func TestStoreGet(t *testing.T) {
@@ -38,6 +67,8 @@ func TestStoreDelete(t *testing.T) {
 	require.NoError(t, e.storeOne.Delete(testKey))
 
 	assert.Equal(t, e.storeOne.Len(), 0)
+	require.Equal(t, 1, e.storeOne.State().Len())
+	assert.Equal(t, [][]byte{{0x6b, 0x65, 0x79, 0x01}}, e.storeOne.State().Items())
 }
 
 func TestStoreConcurrentAccess(t *testing.T) {

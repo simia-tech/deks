@@ -1,22 +1,42 @@
 package edkvs
 
-import "sync"
+import (
+	"encoding/binary"
+	"sync"
+	"time"
+)
 
 type Store struct {
-	items        map[string]item
+	items        map[string]*item
 	itemsRWMutex sync.RWMutex
+	state        *Set
+	count        int
 }
 
 func NewStore() *Store {
 	return &Store{
-		items: make(map[string]item),
+		items: make(map[string]*item),
+		state: NewSet(),
+		count: 0,
 	}
 }
 
 func (s *Store) Set(key, value []byte) error {
+	keyString := string(key)
 	s.itemsRWMutex.Lock()
-	s.items[string(key)] = item{
-		value: value,
+	if i, ok := s.items[keyString]; ok {
+		s.state.Remove(stateItem(key, i.revision))
+		i.value = value
+		i.revision++
+		if !i.deletedAt.IsZero() {
+			i.deletedAt = time.Time{}
+			s.count++
+		}
+		s.state.Insert(stateItem(key, i.revision))
+	} else {
+		s.items[keyString] = &item{value: value, revision: 0, deletedAt: time.Time{}}
+		s.state.Insert(stateItem(key, 0))
+		s.count++
 	}
 	s.itemsRWMutex.Unlock()
 	return nil
@@ -25,9 +45,9 @@ func (s *Store) Set(key, value []byte) error {
 func (s *Store) Get(key []byte) ([]byte, error) {
 	s.itemsRWMutex.RLock()
 
-	item, ok := s.items[string(key)]
+	i, ok := s.items[string(key)]
 	if ok {
-		value := item.value
+		value := i.value
 		s.itemsRWMutex.RUnlock()
 		return value, nil
 	}
@@ -36,19 +56,36 @@ func (s *Store) Get(key []byte) ([]byte, error) {
 }
 
 func (s *Store) Delete(key []byte) error {
+	keyString := string(key)
 	s.itemsRWMutex.Lock()
-	delete(s.items, string(key))
+	if i, ok := s.items[keyString]; ok {
+		s.state.Remove(stateItem(key, i.revision))
+		i.value = nil
+		i.deletedAt = time.Now()
+		i.revision++
+		s.state.Insert(stateItem(key, i.revision))
+		s.count--
+	}
 	s.itemsRWMutex.Unlock()
 	return nil
 }
 
 func (s *Store) Len() int {
-	s.itemsRWMutex.RLock()
-	length := len(s.items)
-	s.itemsRWMutex.RUnlock()
-	return length
+	return s.count
+}
+
+func (s *Store) State() *Set {
+	return s.state
 }
 
 type item struct {
-	value []byte
+	value     []byte
+	revision  uint64
+	deletedAt time.Time
+}
+
+func stateItem(key []byte, revision uint64) []byte {
+	revisionBytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(revisionBytes, revision)
+	return append(key, revisionBytes...)
 }
