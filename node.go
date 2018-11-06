@@ -3,17 +3,22 @@ package edkvs
 import (
 	"log"
 	"net"
+	"strings"
 
-	"github.com/simia-tech/conflux"
 	"github.com/simia-tech/conflux/recon"
 	"github.com/simia-tech/errx"
+	redisserver "github.com/tidwall/redcon"
+)
+
+const (
+	cmdGetItem     = "iget"
+	cmdReconcilate = "reconcilate"
 )
 
 type Node struct {
-	store      *Store
-	listener   net.Listener
-	prefixTree *recon.MemPrefixTree
-	peer       *recon.Peer
+	store    *Store
+	listener net.Listener
+	peer     *recon.Peer
 }
 
 func NewNode(store *Store, network, address string) (*Node, error) {
@@ -23,37 +28,16 @@ func NewNode(store *Store, network, address string) (*Node, error) {
 	}
 	// log.Printf("node is listening at [%s %s]", l.Addr().Network(), l.Addr().String())
 
-	prefixTree := &recon.MemPrefixTree{}
-	prefixTree.Init()
-
 	settings := recon.DefaultSettings()
-	peer := recon.NewPeer(settings, prefixTree)
+	peer := recon.NewPeer(settings, store.State().prefixTree())
 
-	go func() {
-		for {
-			conn, err := l.Accept()
-			if err != nil {
-				if opErr, ok := err.(*net.OpError); !ok || opErr.Err.Error() != "use of closed network connection" {
-					log.Printf("accept: %v", err)
-				}
-				return
-			}
-
-			go func() {
-				if err := peer.Accept(conn); err != nil {
-					log.Printf("recon accept: %v", err)
-					return
-				}
-			}()
-		}
-	}()
-
-	return &Node{
-		store:      store,
-		listener:   l,
-		prefixTree: prefixTree,
-		peer:       peer,
-	}, nil
+	n := &Node{
+		store:    store,
+		listener: l,
+		peer:     peer,
+	}
+	go n.acceptLoop()
+	return n, nil
 }
 
 func (n *Node) Addr() net.Addr {
@@ -64,35 +48,103 @@ func (n *Node) Close() error {
 	return n.listener.Close()
 }
 
-func (n *Node) Insert(value int) error {
-	if err := n.prefixTree.Insert(conflux.Zi(p, value)); err != nil {
-		return errx.Annotatef(err, "insert")
+func (n *Node) Reconcilate(network, address string) (int, error) {
+	conn, err := Dial(network, address)
+	if err != nil {
+		return 0, errx.Annotatef(err, "dial [%s %s]", network, address)
 	}
-	return nil
-}
+	defer conn.Close()
 
-func (n *Node) Reconcilate(addr net.Addr) (int, error) {
-	changes, done, err := n.peer.Reconcilate(addr.Network(), addr.String(), 100)
+	netConn, err := conn.Reconsilate()
 	if err != nil {
 		return 0, errx.Annotatef(err, "reconcilate")
 	}
-	log.Printf("reconcilate / done %v / changes %v", done, changes)
 
-	return len(changes), nil
+	keyHashes, _, err := n.peer.Reconcilate(netConn, 100)
+	if err != nil {
+		return 0, errx.Annotatef(err, "reconcilate")
+	}
+
+	payloadConn, err := Dial(network, address)
+	if err != nil {
+		return 0, errx.Annotatef(err, "dial [%s %s]", network, address)
+	}
+	defer payloadConn.Close()
+
+	for _, keyHash := range keyHashes {
+		kh := newKeyHash(keyHash)
+		item, err := payloadConn.getItem(kh)
+		if err != nil {
+			return 0, errx.Annotatef(err, "get item")
+		}
+		if err := n.store.setItem(kh, item); err != nil {
+			return 0, errx.Annotatef(err, "set item")
+		}
+	}
+
+	return len(keyHashes), nil
 }
 
-func (n *Node) Elements() []int64 {
-	node, err := n.prefixTree.Root()
+func (n *Node) acceptLoop() {
+	done := false
+	err := error(nil)
+	for !done {
+		done, err = n.accept()
+		if err != nil {
+			log.Printf("accept loop: %v", err)
+			done = true
+		}
+	}
+}
+
+func (n *Node) accept() (bool, error) {
+	conn, err := n.listener.Accept()
 	if err != nil {
-		panic(err)
+		if opErr, ok := err.(*net.OpError); ok && opErr.Err.Error() == "use of closed network connection" {
+			return true, nil
+		}
+		return true, errx.Annotatef(err, "accept")
 	}
-	elements, err := node.Elements()
+
+	go func() {
+		if err := n.handleConn(conn); err != nil {
+			log.Printf("conn %s: %v", conn.RemoteAddr(), err)
+		}
+	}()
+
+	return false, nil
+}
+
+func (n *Node) handleConn(conn net.Conn) error {
+	r := redisserver.NewReader(conn)
+	w := redisserver.NewWriter(conn)
+
+	cmd, err := r.ReadCommand()
 	if err != nil {
-		panic(err)
+		return errx.Annotatef(err, "read command")
 	}
-	values := []int64{}
-	for _, element := range elements {
-		values = append(values, element.Int64())
+
+	switch strings.ToLower(string(cmd.Args[0])) {
+	case cmdGetItem:
+		kh := keyHash{}
+		copy(kh[:], cmd.Args[1][:keyHashSize])
+		item, err := n.store.getItem(kh)
+		if err != nil {
+			return errx.Annotatef(err, "get item [%s]", kh)
+		}
+		w.WriteBulk(item)
+		if err := w.Flush(); err != nil {
+			return errx.Annotatef(err, "flush")
+		}
+	case cmdReconcilate:
+		w.WriteString("OK")
+		if err := w.Flush(); err != nil {
+			return errx.Annotatef(err, "flush")
+		}
+		if err := n.peer.Accept(conn); err != nil {
+			return errx.Annotatef(err, "recon accept")
+		}
 	}
-	return values
+
+	return nil
 }

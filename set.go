@@ -16,31 +16,31 @@ func init() {
 }
 
 type Set struct {
-	prefixTree *recon.MemPrefixTree
+	pf *recon.MemPrefixTree
 }
 
 func NewSet() *Set {
-	prefixTree := &recon.MemPrefixTree{}
-	prefixTree.Init()
-	return &Set{prefixTree: prefixTree}
+	pf := &recon.MemPrefixTree{}
+	pf.Init()
+	return &Set{pf: pf}
 }
 
 func (s *Set) Insert(item Item) error {
-	if err := s.prefixTree.Insert(conflux.Zb(p, item[:])); err != nil {
+	if err := s.pf.Insert(conflux.Zb(p, item[:])); err != nil {
 		return errx.Annotatef(err, "insert")
 	}
 	return nil
 }
 
 func (s *Set) Remove(item Item) error {
-	if err := s.prefixTree.Remove(conflux.Zb(p, item[:])); err != nil {
+	if err := s.pf.Remove(conflux.Zb(p, item[:])); err != nil {
 		return errx.Annotatef(err, "remove")
 	}
 	return nil
 }
 
 func (s *Set) Items() []Item {
-	items := s.prefixTree.Items()
+	items := s.pf.Items()
 	results := make([]Item, len(items))
 	for index, item := range items {
 		i := Item{}
@@ -51,9 +51,13 @@ func (s *Set) Items() []Item {
 }
 
 func (s *Set) Len() int {
-	return s.prefixTree.Len()
+	return s.pf.Len()
 }
 
-const ItemSize = keySize + 8
+func (s *Set) prefixTree() recon.PrefixTree {
+	return s.pf
+}
+
+const ItemSize = keyHashSize + 8
 
 type Item [ItemSize]byte
