@@ -24,6 +24,7 @@ func (kh keyHash) String() string {
 	return hex.EncodeToString(kh[:])
 }
 
+// Store defines a key-value store.
 type Store struct {
 	items        map[keyHash]*item
 	itemsRWMutex sync.RWMutex
@@ -31,6 +32,7 @@ type Store struct {
 	count        int
 }
 
+// NewStore returns a new store.
 func NewStore() *Store {
 	return &Store{
 		items: make(map[keyHash]*item),
@@ -39,6 +41,7 @@ func NewStore() *Store {
 	}
 }
 
+// Set sets the provided value at the provided key.
 func (s *Store) Set(key, value []byte) error {
 	kh := hashKey(key)
 	s.itemsRWMutex.Lock()
@@ -60,6 +63,7 @@ func (s *Store) Set(key, value []byte) error {
 	return nil
 }
 
+// Get returns the value at the provided key. If no value exists, nil is returned.
 func (s *Store) Get(key []byte) ([]byte, error) {
 	kh := hashKey(key)
 	s.itemsRWMutex.RLock()
@@ -77,6 +81,7 @@ func (s *Store) Get(key []byte) ([]byte, error) {
 	return nil, nil
 }
 
+// Delete removes the value at the provided key.
 func (s *Store) Delete(key []byte) error {
 	k := hashKey(key)
 	s.itemsRWMutex.Lock()
@@ -92,10 +97,12 @@ func (s *Store) Delete(key []byte) error {
 	return nil
 }
 
+// Len returns the length of the store.
 func (s *Store) Len() int {
 	return s.count
 }
 
+// State returns a set containing all keys and revisions.
 func (s *Store) State() *Set {
 	return s.state
 }

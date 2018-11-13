@@ -15,12 +15,14 @@ const (
 	cmdReconcilate = "reconcilate"
 )
 
+// Node defines a edkvs node.
 type Node struct {
 	store    *Store
 	listener net.Listener
 	peer     *recon.Peer
 }
 
+// NewNode returns a new node.
 func NewNode(store *Store, network, address string) (*Node, error) {
 	l, err := net.Listen(network, address)
 	if err != nil {
@@ -40,14 +42,17 @@ func NewNode(store *Store, network, address string) (*Node, error) {
 	return n, nil
 }
 
+// Addr returns the `net.Addr` where the node is listen to.
 func (n *Node) Addr() net.Addr {
 	return n.listener.Addr()
 }
 
+// Close tears down the node.
 func (n *Node) Close() error {
 	return n.listener.Close()
 }
 
+// Reconcilate performs a reconsiliation with the node at the provided address.
 func (n *Node) Reconcilate(network, address string) (int, error) {
 	conn, err := Dial(network, address)
 	if err != nil {
@@ -87,7 +92,7 @@ func (n *Node) Reconcilate(network, address string) (int, error) {
 
 func (n *Node) acceptLoop() {
 	done := false
-	err := error(nil)
+	var err error
 	for !done {
 		done, err = n.accept()
 		if err != nil {
