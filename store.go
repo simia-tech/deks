@@ -65,6 +65,10 @@ func (s *Store) Get(key []byte) ([]byte, error) {
 	s.itemsRWMutex.RLock()
 	i, ok := s.items[kh]
 	if ok {
+		if !i.deletedAt.IsZero() {
+			s.itemsRWMutex.RUnlock()
+			return nil, nil
+		}
 		value := i.value
 		s.itemsRWMutex.RUnlock()
 		return value, nil
@@ -116,7 +120,9 @@ func (s *Store) setItem(kh keyHash, bytes []byte) error {
 	} else {
 		s.items[kh] = ni
 		s.state.Insert(stateItem(kh, 0))
-		s.count++
+		if ni.deletedAt.IsZero() {
+			s.count++
+		}
 	}
 	s.itemsRWMutex.Unlock()
 
