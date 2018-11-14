@@ -11,6 +11,7 @@ import (
 )
 
 const (
+	cmdSetItem     = "iset"
 	cmdGetItem     = "iget"
 	cmdReconcilate = "reconcilate"
 )
@@ -20,6 +21,7 @@ type Node struct {
 	store    *Store
 	listener net.Listener
 	peer     *recon.Peer
+	streams  []*stream
 }
 
 // NewNode returns a new node.
@@ -37,7 +39,9 @@ func NewNode(store *Store, network, address string) (*Node, error) {
 		store:    store,
 		listener: l,
 		peer:     peer,
+		streams:  make([]*stream, 0),
 	}
+	store.updateFn = n.update
 	go n.acceptLoop()
 	return n, nil
 }
@@ -49,7 +53,31 @@ func (n *Node) Addr() net.Addr {
 
 // Close tears down the node.
 func (n *Node) Close() error {
-	return n.listener.Close()
+	for _, stream := range n.streams {
+		stream.close()
+	}
+	if err := n.listener.Close(); err != nil {
+		if opErr, ok := err.(*net.OpError); ok && opErr.Err.Error() == "use of closed network connection" {
+			return nil
+		}
+		return errx.Annotatef(err, "close listener")
+	}
+	return nil
+}
+
+// AddTargetAddr adds another node as a target for updates.
+func (n *Node) AddTargetAddr(addr net.Addr) error {
+	return n.AddTarget(addr.Network(), addr.String())
+}
+
+// AddTarget adds another node as a target for updates.
+func (n *Node) AddTarget(network, address string) error {
+	stream, err := newStream(network, address)
+	if err != nil {
+		return errx.Annotatef(err, "new stream")
+	}
+	n.streams = append(n.streams, stream)
+	return nil
 }
 
 // Reconcilate performs a reconsiliation with the node at the provided address.
@@ -130,6 +158,16 @@ func (n *Node) handleConn(conn net.Conn) error {
 	}
 
 	switch strings.ToLower(string(cmd.Args[0])) {
+	case cmdSetItem:
+		kh := keyHash{}
+		copy(kh[:], cmd.Args[1][:keyHashSize])
+		if err := n.store.setItem(kh, cmd.Args[2]); err != nil {
+			return errx.Annotatef(err, "set item [%s]", kh)
+		}
+		w.WriteString("OK")
+		if err := w.Flush(); err != nil {
+			return errx.Annotatef(err, "flush")
+		}
 	case cmdGetItem:
 		kh := keyHash{}
 		copy(kh[:], cmd.Args[1][:keyHashSize])
@@ -152,4 +190,10 @@ func (n *Node) handleConn(conn net.Conn) error {
 	}
 
 	return nil
+}
+
+func (n *Node) update(kh keyHash, item *item) {
+	for _, stream := range n.streams {
+		stream.update(kh, item)
+	}
 }

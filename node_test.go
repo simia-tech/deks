@@ -2,7 +2,9 @@ package edkvs_test
 
 import (
 	"testing"
+	"time"
 
+	"github.com/simia-tech/edkvs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -50,7 +52,7 @@ func TestNodeReconcilateUpdatedValue(t *testing.T) {
 	assert.Equal(t, 1, e.storeOne.Len())
 
 	require.NoError(t, e.storeTwo.Set(testKey, testValue))
-	assert.Equal(t, 1, e.storeOne.Len())
+	assert.Equal(t, 1, e.storeTwo.Len())
 
 	count, err := e.nodeTwo.Reconcilate(e.nodeOne.Addr().Network(), e.nodeOne.Addr().String())
 	require.NoError(t, err)
@@ -60,4 +62,62 @@ func TestNodeReconcilateUpdatedValue(t *testing.T) {
 	value, err := e.storeTwo.Get(testKey)
 	require.NoError(t, err)
 	assert.Equal(t, testAnotherValue, value)
+}
+
+func TestNodeStreamUpdatesToAnotherNode(t *testing.T) {
+	e := setUpTestEnvironment(t)
+	defer e.tearDown()
+
+	e.nodeOne.AddTargetAddr(e.nodeTwo.Addr())
+	time.Sleep(100 * time.Millisecond)
+
+	require.NoError(t, e.storeOne.Set(testKey, testValue))
+	time.Sleep(100 * time.Millisecond)
+
+	require.Equal(t, 1, e.storeTwo.Len())
+	value, err := e.storeTwo.Get(testKey)
+	require.NoError(t, err)
+	assert.Equal(t, testValue, value)
+}
+
+func TestNodeStreamUpdatesToTwoOtherNodes(t *testing.T) {
+	e := setUpTestEnvironment(t)
+	defer e.tearDown()
+
+	storeThree := edkvs.NewStore()
+	nodeThree, err := edkvs.NewNode(storeThree, "tcp", "localhost:0")
+	require.NoError(t, err)
+
+	e.nodeOne.AddTargetAddr(e.nodeTwo.Addr())
+	e.nodeOne.AddTargetAddr(nodeThree.Addr())
+	time.Sleep(100 * time.Millisecond)
+
+	require.NoError(t, e.storeOne.Set(testKey, testValue))
+	time.Sleep(100 * time.Millisecond)
+
+	require.Equal(t, 1, e.storeTwo.Len())
+	value, err := e.storeTwo.Get(testKey)
+	require.NoError(t, err)
+	assert.Equal(t, testValue, value)
+
+	require.Equal(t, 1, storeThree.Len())
+	value, err = storeThree.Get(testKey)
+	require.NoError(t, err)
+	assert.Equal(t, testValue, value)
+}
+
+func TestNodeStreamUpdatesToAFailingNode(t *testing.T) {
+	e := setUpTestEnvironment(t)
+	defer e.tearDown()
+
+	addr := e.nodeTwo.Addr()
+	require.NoError(t, e.nodeTwo.Close())
+
+	e.nodeOne.AddTargetAddr(addr)
+	time.Sleep(100 * time.Millisecond)
+
+	require.NoError(t, e.storeOne.Set(testKey, testValue))
+	time.Sleep(100 * time.Millisecond)
+
+	assert.Equal(t, 0, e.storeTwo.Len())
 }

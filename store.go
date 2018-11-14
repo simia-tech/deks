@@ -30,6 +30,7 @@ type Store struct {
 	itemsRWMutex sync.RWMutex
 	state        *Set
 	count        int
+	updateFn     func(keyHash, *item)
 }
 
 // NewStore returns a new store.
@@ -54,9 +55,12 @@ func (s *Store) Set(key, value []byte) error {
 			s.count++
 		}
 		s.state.Insert(stateItem(kh, i.revision))
+		s.notify(kh, i)
 	} else {
-		s.items[kh] = &item{value: value, revision: 0, deletedAt: time.Time{}}
+		i := &item{value: value, revision: 0, deletedAt: time.Time{}}
+		s.items[kh] = i
 		s.state.Insert(stateItem(kh, 0))
+		s.notify(kh, i)
 		s.count++
 	}
 	s.itemsRWMutex.Unlock()
@@ -150,6 +154,13 @@ func (s *Store) getItem(kh keyHash) ([]byte, error) {
 	}
 	s.itemsRWMutex.RUnlock()
 	return nil, nil
+}
+
+func (s *Store) notify(kh keyHash, item *item) {
+	if s.updateFn == nil {
+		return
+	}
+	s.updateFn(kh, item)
 }
 
 type item struct {

@@ -46,6 +46,21 @@ func (c *Conn) Reconsilate() (net.Conn, error) {
 	return c.conn, nil
 }
 
+func (c *Conn) setItem(kh keyHash, item []byte) error {
+	response := c.client.Cmd(cmdSetItem, kh[:], item)
+	if !response.IsType(redis.Str) {
+		return errx.Errorf("set item command failed")
+	}
+	s, err := response.Str()
+	if err != nil {
+		return errx.Annotatef(err, "response string")
+	}
+	if s != "OK" {
+		return errx.Errorf("set item command failed")
+	}
+	return nil
+}
+
 func (c *Conn) getItem(kh keyHash) ([]byte, error) {
 	response := c.client.Cmd(cmdGetItem, kh[:])
 	if !response.IsType(redis.Str) {
