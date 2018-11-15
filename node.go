@@ -1,6 +1,7 @@
 package edkvs
 
 import (
+	"fmt"
 	"log"
 	"net"
 	"strings"
@@ -11,6 +12,8 @@ import (
 )
 
 const (
+	cmdSet         = "set"
+	cmdGet         = "get"
 	cmdSetItem     = "iset"
 	cmdGetItem     = "iget"
 	cmdReconcilate = "reconcilate"
@@ -147,44 +150,59 @@ func (n *Node) handleConn(conn net.Conn) error {
 	r := redisserver.NewReader(conn)
 	w := redisserver.NewWriter(conn)
 
-	cmd, err := r.ReadCommand()
-	if err != nil {
-		return errx.Annotatef(err, "read command")
-	}
-
-	switch strings.ToLower(string(cmd.Args[0])) {
-	case cmdSetItem:
-		kh := keyHash{}
-		copy(kh[:], cmd.Args[1][:keyHashSize])
-		if err := n.store.setItem(kh, cmd.Args[2]); err != nil {
-			return errx.Annotatef(err, "set item [%s]", kh)
-		}
-		w.WriteString("OK")
-		if err := w.Flush(); err != nil {
-			return errx.Annotatef(err, "flush")
-		}
-	case cmdGetItem:
-		kh := keyHash{}
-		copy(kh[:], cmd.Args[1][:keyHashSize])
-		item, err := n.store.getItem(kh)
+	for {
+		cmd, err := r.ReadCommand()
 		if err != nil {
-			return errx.Annotatef(err, "get item [%s]", kh)
+			return errx.Annotatef(err, "read command")
 		}
-		w.WriteBulk(item)
+
+		command := strings.ToLower(string(cmd.Args[0]))
+		arguments := cmd.Args[1:]
+
+		switch command {
+		case cmdSet:
+			if err := n.store.Set(arguments[0], arguments[1]); err != nil {
+				return errx.Annotatef(err, "set")
+			}
+			w.WriteString("OK")
+		case cmdGet:
+			value, err := n.store.Get(arguments[0])
+			if err != nil {
+				return errx.Annotatef(err, "get [%s]", arguments[0])
+			}
+			w.WriteBulk(value)
+		case cmdSetItem:
+			kh := keyHash{}
+			copy(kh[:], arguments[0][:keyHashSize])
+			if err := n.store.setItem(kh, arguments[1]); err != nil {
+				return errx.Annotatef(err, "set item [%s]", kh)
+			}
+			w.WriteString("OK")
+		case cmdGetItem:
+			kh := keyHash{}
+			copy(kh[:], arguments[0][:keyHashSize])
+			item, err := n.store.getItem(kh)
+			if err != nil {
+				return errx.Annotatef(err, "get item [%s]", kh)
+			}
+			w.WriteBulk(item)
+		case cmdReconcilate:
+			w.WriteString("OK")
+			if err := w.Flush(); err != nil {
+				return errx.Annotatef(err, "flush")
+			}
+			if err := n.peer.Accept(conn); err != nil {
+				return errx.Annotatef(err, "recon accept")
+			}
+			return nil // exit command loop
+		default:
+			w.WriteError(fmt.Sprintf("unknown command [%s]", command))
+		}
+
 		if err := w.Flush(); err != nil {
 			return errx.Annotatef(err, "flush")
-		}
-	case cmdReconcilate:
-		w.WriteString("OK")
-		if err := w.Flush(); err != nil {
-			return errx.Annotatef(err, "flush")
-		}
-		if err := n.peer.Accept(conn); err != nil {
-			return errx.Annotatef(err, "recon accept")
 		}
 	}
-
-	return nil
 }
 
 func (n *Node) update(kh keyHash, item *item) {

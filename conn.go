@@ -36,6 +36,28 @@ func (c *Conn) Close() error {
 	return c.conn.Close()
 }
 
+// Set sets the provided value at the provided key.
+func (c *Conn) Set(key, value []byte) error {
+	response := c.client.Cmd(cmdSet, key, value)
+	if !isOK(response) {
+		return errx.Errorf("set command failed")
+	}
+	return nil
+}
+
+// Get returns the value at the provided key.
+func (c *Conn) Get(key []byte) ([]byte, error) {
+	response := c.client.Cmd(cmdGet, key)
+	if !response.IsType(redis.Str) {
+		return nil, errx.Errorf("get item command failed")
+	}
+	bytes, err := response.Bytes()
+	if err != nil {
+		return nil, errx.Annotatef(err, "response bytes")
+	}
+	return bytes, nil
+}
+
 // Reconsilate sets the server into reconsilation mode and returns the underlying connection.
 func (c *Conn) Reconsilate() (net.Conn, error) {
 	response := c.client.Cmd(cmdReconcilate)
@@ -48,14 +70,7 @@ func (c *Conn) Reconsilate() (net.Conn, error) {
 
 func (c *Conn) setItem(kh keyHash, item []byte) error {
 	response := c.client.Cmd(cmdSetItem, kh[:], item)
-	if !response.IsType(redis.Str) {
-		return errx.Errorf("set item command failed")
-	}
-	s, err := response.Str()
-	if err != nil {
-		return errx.Annotatef(err, "response string")
-	}
-	if s != "OK" {
+	if !isOK(response) {
 		return errx.Errorf("set item command failed")
 	}
 	return nil

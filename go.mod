@@ -7,12 +7,12 @@ require (
 	github.com/hashicorp/golang-lru v0.5.0 // indirect
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/lucas-clemente/aes12 v0.0.0-20171027163421-cd47fb39b79f // indirect
-	github.com/lucas-clemente/quic-go v0.10.0
+	github.com/lucas-clemente/quic-go v0.10.0 // indirect
 	github.com/lucas-clemente/quic-go-certificates v0.0.0-20160823095156-d2f86524cced // indirect
 	github.com/mdempsky/gocode v0.0.0-20181105154058-0af7a86943a6 // indirect
 	github.com/mediocregopher/radix.v2 v0.0.0-20180603022615-94360be26253
 	github.com/onsi/gomega v1.4.2 // indirect
-	github.com/quorzz/redis-protocol v0.0.0-20160807034421-8cdae60e7b8a
+	github.com/quorzz/redis-protocol v0.0.0-20160807034421-8cdae60e7b8a // indirect
 	github.com/simia-tech/conflux v0.0.0-20181106104730-883c83fab451
 	github.com/simia-tech/errx v0.1.0
 	github.com/stretchr/testify v1.2.2
