@@ -16,6 +16,7 @@ const (
 	cmdQuit         = `quit`
 	cmdSet          = "set"
 	cmdGet          = "get"
+	cmdDelete       = "del"
 	cmdKeys         = "keys"
 	cmdSetContainer = "cset"        // hidden
 	cmdGetContainer = "cget"        // hidden
@@ -25,6 +26,7 @@ const (
 help              - prints this help message
 set <key> <value> - sets <value> at <key>
 get <key>         - returns value at <key>
+del <key>         - removes value at <key>
 keys              - returns all keys
 quit              - closes the connection
 `
@@ -191,6 +193,11 @@ func (n *Node) handleConn(conn net.Conn) error {
 				return errx.Annotatef(err, "get [%s]", arguments[0])
 			}
 			w.WriteBulk(value)
+		case cmdDelete:
+			if err := n.store.Delete(arguments[0]); err != nil {
+				return errx.Annotatef(err, "delete [%s]", arguments[0])
+			}
+			w.WriteString("OK")
 		case cmdKeys:
 			w.WriteArray(n.store.Len())
 			n.store.Each(func(key, _ []byte) error {

@@ -58,6 +58,15 @@ func (c *Conn) Get(key []byte) ([]byte, error) {
 	return bytes, nil
 }
 
+// Delete removes the value at the provided key.
+func (c *Conn) Delete(key []byte) error {
+	response := c.client.Cmd(cmdDelete, key)
+	if !isOK(response) {
+		return errx.Errorf("delete command failed")
+	}
+	return nil
+}
+
 // Keys returns a slice containing all keys.
 func (c *Conn) Keys() ([][]byte, error) {
 	response := c.client.Cmd(cmdKeys)

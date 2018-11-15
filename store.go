@@ -92,15 +92,16 @@ func (s *Store) Get(key []byte) ([]byte, error) {
 
 // Delete removes the value at the provided key.
 func (s *Store) Delete(key []byte) error {
-	k := hashKey(key)
+	hk := hashKey(key)
 	s.containersRWMutex.Lock()
-	if c, ok := s.containers[k]; ok {
+	if c, ok := s.containers[hk]; ok {
 		if !c.isDeleted() {
-			s.state.Remove(stateItem(k, c.revision))
+			s.state.Remove(stateItem(hk, c.revision))
 			c.value = nil
 			c.delete()
 			c.revision++
-			s.state.Insert(stateItem(k, c.revision))
+			s.state.Insert(stateItem(hk, c.revision))
+			s.notify(hk, c)
 			s.count--
 		}
 	}
