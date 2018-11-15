@@ -12,11 +12,20 @@ import (
 )
 
 const (
+	cmdHelp        = "help"
+	cmdQuit        = `quit`
 	cmdSet         = "set"
 	cmdGet         = "get"
 	cmdSetItem     = "iset"
 	cmdGetItem     = "iget"
 	cmdReconcilate = "reconcilate"
+
+	help = `Supported commands:
+help              - prints this help message
+set <key> <value> - sets <value> at <key>
+get <key>         - returns value at <key>
+quit              - closes the connection
+`
 )
 
 // Node defines a edkvs node.
@@ -141,6 +150,9 @@ func (n *Node) accept() (bool, error) {
 		if err := n.handleConn(conn); err != nil {
 			log.Printf("conn %s: %v", conn.RemoteAddr(), err)
 		}
+		if err := conn.Close(); err != nil {
+			log.Printf("close conn %s: %v", conn.RemoteAddr(), err)
+		}
 	}()
 
 	return false, nil
@@ -150,7 +162,8 @@ func (n *Node) handleConn(conn net.Conn) error {
 	r := redisserver.NewReader(conn)
 	w := redisserver.NewWriter(conn)
 
-	for {
+	done := false
+	for !done {
 		cmd, err := r.ReadCommand()
 		if err != nil {
 			return errx.Annotatef(err, "read command")
@@ -160,6 +173,11 @@ func (n *Node) handleConn(conn net.Conn) error {
 		arguments := cmd.Args[1:]
 
 		switch command {
+		case cmdHelp:
+			w.WriteBulkString(help)
+		case cmdQuit:
+			done = true
+			w.WriteString("OK")
 		case cmdSet:
 			if err := n.store.Set(arguments[0], arguments[1]); err != nil {
 				return errx.Annotatef(err, "set")
@@ -203,6 +221,8 @@ func (n *Node) handleConn(conn net.Conn) error {
 			return errx.Annotatef(err, "flush")
 		}
 	}
+
+	return nil
 }
 
 func (n *Node) update(kh keyHash, item *item) {
