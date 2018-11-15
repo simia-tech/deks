@@ -66,18 +66,13 @@ func (n *Node) Close() error {
 }
 
 // AddTargetAddr adds another node as a target for updates.
-func (n *Node) AddTargetAddr(addr net.Addr) error {
-	return n.AddTarget(addr.Network(), addr.String())
+func (n *Node) AddTargetAddr(addr net.Addr) {
+	n.AddTarget(addr.Network(), addr.String())
 }
 
 // AddTarget adds another node as a target for updates.
-func (n *Node) AddTarget(network, address string) error {
-	stream, err := newStream(network, address)
-	if err != nil {
-		return errx.Annotatef(err, "new stream")
-	}
-	n.streams = append(n.streams, stream)
-	return nil
+func (n *Node) AddTarget(network, address string) {
+	n.streams = append(n.streams, newStream(network, address))
 }
 
 // Reconcilate performs a reconsiliation with the node at the provided address.

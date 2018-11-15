@@ -21,7 +21,7 @@ type streamUpdate struct {
 	item    *item
 }
 
-func newStream(network, address string) (*stream, error) {
+func newStream(network, address string) *stream {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &stream{
 		ctx:     ctx,
@@ -30,7 +30,7 @@ func newStream(network, address string) (*stream, error) {
 		address: address,
 	}
 	go s.loop()
-	return s, nil
+	return s
 }
 
 func (s *stream) loop() {
