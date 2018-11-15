@@ -31,8 +31,9 @@ func main() {
 	}
 
 	edkvs, err := edkvs.NewEDKVS(edkvs.Options{
-		ListenURL: opts.ListenURL,
-		PeerURLs:  opts.PeerURLs,
+		ListenURL:             opts.ListenURL,
+		PeerURLs:              opts.PeerURLs,
+		PeerReconnectInterval: opts.PeerReconnectInterval,
 	})
 	if err != nil {
 		log.Fatal(err)
