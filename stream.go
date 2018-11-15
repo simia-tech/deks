@@ -9,11 +9,11 @@ import (
 )
 
 type stream struct {
-	ctx     context.Context
-	cancel  context.CancelFunc
-	network string
-	address string
-	updates chan streamUpdate
+	ctx                   context.Context
+	cancel                context.CancelFunc
+	peerURL               string
+	peerReconnectInterval time.Duration
+	updates               chan streamUpdate
 }
 
 type streamUpdate struct {
@@ -21,13 +21,13 @@ type streamUpdate struct {
 	container *container
 }
 
-func newStream(network, address string) *stream {
+func newStream(peerURL string, peerReconnectInterval time.Duration) *stream {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &stream{
-		ctx:     ctx,
-		cancel:  cancel,
-		network: network,
-		address: address,
+		ctx:                   ctx,
+		cancel:                cancel,
+		peerURL:               peerURL,
+		peerReconnectInterval: peerReconnectInterval,
 	}
 	go s.loop()
 	return s
@@ -40,15 +40,15 @@ func (s *stream) loop() {
 			return
 		default:
 			if err := s.connect(); err != nil {
-				log.Printf("stream [%s %s]: %v", s.network, s.address, err)
+				log.Printf("stream [%s]: %v", s.peerURL, err)
 			}
-			time.Sleep(time.Second)
+			time.Sleep(s.peerReconnectInterval)
 		}
 	}
 }
 
 func (s *stream) connect() error {
-	conn, err := Dial(s.network, s.address)
+	conn, err := Dial(s.peerURL)
 	if err != nil {
 		return errx.Annotatef(err, "dial")
 	}

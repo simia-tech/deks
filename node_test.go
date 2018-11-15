@@ -15,7 +15,7 @@ func TestNodeReconcilateValue(t *testing.T) {
 
 	require.NoError(t, e.storeOne.Set(testKey, testValue))
 
-	count, err := e.nodeTwo.Reconcilate(e.nodeOne.Addr().Network(), e.nodeOne.Addr().String())
+	count, err := e.nodeTwo.Reconcilate(e.nodeOne.ListenURL())
 	require.NoError(t, err)
 	assert.Equal(t, 1, count)
 
@@ -33,7 +33,7 @@ func TestNodeReconcilateDeletedValue(t *testing.T) {
 	require.NoError(t, e.storeOne.Delete(testKey))
 	assert.Equal(t, 0, e.storeOne.Len())
 
-	count, err := e.nodeTwo.Reconcilate(e.nodeOne.Addr().Network(), e.nodeOne.Addr().String())
+	count, err := e.nodeTwo.Reconcilate(e.nodeOne.ListenURL())
 	require.NoError(t, err)
 	assert.Equal(t, 1, count)
 
@@ -54,7 +54,7 @@ func TestNodeReconcilateUpdatedValue(t *testing.T) {
 	require.NoError(t, e.storeTwo.Set(testKey, testValue))
 	assert.Equal(t, 1, e.storeTwo.Len())
 
-	count, err := e.nodeTwo.Reconcilate(e.nodeOne.Addr().Network(), e.nodeOne.Addr().String())
+	count, err := e.nodeTwo.Reconcilate(e.nodeOne.ListenURL())
 	require.NoError(t, err)
 	assert.Equal(t, 1, count)
 
@@ -68,7 +68,7 @@ func TestNodeStreamUpdatesToAnotherNode(t *testing.T) {
 	e := setUpTestEnvironment(t)
 	defer e.tearDown()
 
-	e.nodeOne.AddTargetAddr(e.nodeTwo.Addr())
+	e.nodeOne.AddPeer(e.nodeTwo.ListenURL(), time.Minute)
 	time.Sleep(100 * time.Millisecond)
 
 	require.NoError(t, e.storeOne.Set(testKey, testValue))
@@ -85,11 +85,11 @@ func TestNodeStreamUpdatesToTwoOtherNodes(t *testing.T) {
 	defer e.tearDown()
 
 	storeThree := edkvs.NewStore()
-	nodeThree, err := edkvs.NewNode(storeThree, "tcp", "localhost:0")
+	nodeThree, err := edkvs.NewNode(storeThree, "tcp://localhost:0")
 	require.NoError(t, err)
 
-	e.nodeOne.AddTargetAddr(e.nodeTwo.Addr())
-	e.nodeOne.AddTargetAddr(nodeThree.Addr())
+	e.nodeOne.AddPeer(e.nodeTwo.ListenURL(), time.Minute)
+	e.nodeOne.AddPeer(nodeThree.ListenURL(), time.Minute)
 	time.Sleep(100 * time.Millisecond)
 
 	require.NoError(t, e.storeOne.Set(testKey, testValue))
@@ -110,10 +110,10 @@ func TestNodeStreamUpdatesToAFailingNode(t *testing.T) {
 	e := setUpTestEnvironment(t)
 	defer e.tearDown()
 
-	addr := e.nodeTwo.Addr()
+	listenURL := e.nodeTwo.ListenURL()
 	require.NoError(t, e.nodeTwo.Close())
 
-	e.nodeOne.AddTargetAddr(addr)
+	e.nodeOne.AddPeer(listenURL, time.Minute)
 	time.Sleep(100 * time.Millisecond)
 
 	require.NoError(t, e.storeOne.Set(testKey, testValue))

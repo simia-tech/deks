@@ -13,8 +13,13 @@ type Conn struct {
 	client *redis.Client
 }
 
-// Dial establishes a connection to the server at the provided address.
-func Dial(network, address string) (*Conn, error) {
+// Dial establishes a connection to the server at the provided url.
+func Dial(url string) (*Conn, error) {
+	network, address, err := parseURL(url)
+	if err != nil {
+		return nil, errx.Annotatef(err, "parse url [%s]", url)
+	}
+
 	conn, err := net.Dial(network, address)
 	if err != nil {
 		return nil, errx.Annotatef(err, "dial [%s %s]", network, address)

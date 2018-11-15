@@ -18,11 +18,11 @@ type environment struct {
 
 func setUpTestEnvironment(tb testing.TB) *environment {
 	storeOne := edkvs.NewStore()
-	nodeOne, err := edkvs.NewNode(storeOne, "tcp", "localhost:0")
+	nodeOne, err := edkvs.NewNode(storeOne, "tcp://localhost:0")
 	require.NoError(tb, err)
 
 	storeTwo := edkvs.NewStore()
-	nodeTwo, err := edkvs.NewNode(storeTwo, "tcp", "localhost:0")
+	nodeTwo, err := edkvs.NewNode(storeTwo, "tcp://localhost:0")
 	require.NoError(tb, err)
 
 	return &environment{

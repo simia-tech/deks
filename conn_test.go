@@ -13,7 +13,7 @@ func TestConnSetAndGet(t *testing.T) {
 	e := setUpTestEnvironment(t)
 	defer e.tearDown()
 
-	conn, err := edkvs.Dial(e.nodeOne.Addr().Network(), e.nodeOne.Addr().String())
+	conn, err := edkvs.Dial(e.nodeOne.ListenURL())
 	require.NoError(t, err)
 
 	require.NoError(t, conn.Set(testKey, testValue))
@@ -27,7 +27,7 @@ func TestConnDelete(t *testing.T) {
 	e := setUpTestEnvironment(t)
 	defer e.tearDown()
 
-	conn, err := edkvs.Dial(e.nodeOne.Addr().Network(), e.nodeOne.Addr().String())
+	conn, err := edkvs.Dial(e.nodeOne.ListenURL())
 	require.NoError(t, err)
 
 	require.NoError(t, conn.Set(testKey, testValue))
@@ -43,7 +43,7 @@ func TestConnKeys(t *testing.T) {
 	e := setUpTestEnvironment(t)
 	defer e.tearDown()
 
-	conn, err := edkvs.Dial(e.nodeOne.Addr().Network(), e.nodeOne.Addr().String())
+	conn, err := edkvs.Dial(e.nodeOne.ListenURL())
 	require.NoError(t, err)
 
 	require.NoError(t, conn.Set(testKey, testValue))

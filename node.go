@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/url"
 	"strings"
+	"time"
 
 	"github.com/simia-tech/conflux/recon"
 	"github.com/simia-tech/errx"
@@ -43,7 +45,12 @@ type Node struct {
 }
 
 // NewNode returns a new node.
-func NewNode(store *Store, network, address string) (*Node, error) {
+func NewNode(store *Store, listenURL string) (*Node, error) {
+	network, address, err := parseURL(listenURL)
+	if err != nil {
+		return nil, errx.Annotatef(err, "parse listen url [%s]", listenURL)
+	}
+
 	l, err := net.Listen(network, address)
 	if err != nil {
 		return nil, errx.Annotatef(err, "listen [%s %s]", network, address)
@@ -64,9 +71,10 @@ func NewNode(store *Store, network, address string) (*Node, error) {
 	return n, nil
 }
 
-// Addr returns the `net.Addr` where the node is listen to.
-func (n *Node) Addr() net.Addr {
-	return n.listener.Addr()
+// ListenURL returns the url of the listener.
+func (n *Node) ListenURL() string {
+	addr := n.listener.Addr()
+	return fmt.Sprintf("%s://%s", addr.Network(), addr.String())
 }
 
 // Close tears down the node.
@@ -83,21 +91,16 @@ func (n *Node) Close() error {
 	return nil
 }
 
-// AddTargetAddr adds another node as a target for updates.
-func (n *Node) AddTargetAddr(addr net.Addr) {
-	n.AddTarget(addr.Network(), addr.String())
-}
-
-// AddTarget adds another node as a target for updates.
-func (n *Node) AddTarget(network, address string) {
-	n.streams = append(n.streams, newStream(network, address))
+// AddPeer adds another node as a target for updates.
+func (n *Node) AddPeer(peerURL string, peerReconnectInterval time.Duration) {
+	n.streams = append(n.streams, newStream(peerURL, peerReconnectInterval))
 }
 
 // Reconcilate performs a reconsiliation with the node at the provided address.
-func (n *Node) Reconcilate(network, address string) (int, error) {
-	conn, err := Dial(network, address)
+func (n *Node) Reconcilate(url string) (int, error) {
+	conn, err := Dial(url)
 	if err != nil {
-		return 0, errx.Annotatef(err, "dial [%s %s]", network, address)
+		return 0, errx.Annotatef(err, "dial [%s]", url)
 	}
 	defer conn.Close()
 
@@ -111,9 +114,9 @@ func (n *Node) Reconcilate(network, address string) (int, error) {
 		return 0, errx.Annotatef(err, "reconcilate")
 	}
 
-	payloadConn, err := Dial(network, address)
+	payloadConn, err := Dial(url)
 	if err != nil {
-		return 0, errx.Annotatef(err, "dial [%s %s]", network, address)
+		return 0, errx.Annotatef(err, "dial [%s]", url)
 	}
 	defer payloadConn.Close()
 
@@ -251,4 +254,12 @@ func (n *Node) update(kh keyHash, container *container) {
 	for _, stream := range n.streams {
 		stream.update(kh, container)
 	}
+}
+
+func parseURL(u string) (string, string, error) {
+	url, err := url.Parse(u)
+	if err != nil {
+		return "", "", errx.Annotatef(err, "parse url [%s]", u)
+	}
+	return url.Scheme, url.Host, nil
 }

@@ -4,14 +4,16 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"time"
 
 	flags "github.com/jessevdk/go-flags"
 	"github.com/simia-tech/edkvs"
 )
 
 type options struct {
-	Address       string   `short:"a" long:"address" description:"listener address"`
-	NodeAddresses []string `short:"n" long:"node" description:"address of target node. multiple specifications possible"`
+	ListenURL             string        `short:"l" long:"listen" default:"tcp://localhost:0" description:"listener address"`
+	PeerURLs              []string      `short:"p" long:"peer" description:"address of target node. multiple specifications possible"`
+	PeerReconnectInterval time.Duration `short:"r" long:"peer-reconnect-interval" default:"5s" description:"duration after which a failing peer is reconnected"`
 }
 
 var (
@@ -28,24 +30,21 @@ func main() {
 		}
 	}
 
-	store := edkvs.NewStore()
-	node, err := edkvs.NewNode(store, "tcp", opts.Address)
+	edkvs, err := edkvs.NewEDKVS(edkvs.Options{
+		ListenURL: opts.ListenURL,
+		PeerURLs:  opts.PeerURLs,
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("node is listing at %s", node.Addr())
-
-	for _, nodeAddress := range opts.NodeAddresses {
-		node.AddTarget("tcp", nodeAddress)
-		log.Printf("node connected to %s", nodeAddress)
-	}
+	log.Printf("node is listing at %s", edkvs.ListenURL())
 
 	ch := make(chan os.Signal)
 	signal.Notify(ch, os.Interrupt)
 	<-ch
 
-	if err := node.Close(); err != nil {
+	if err := edkvs.Close(); err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("node teared down")
+	log.Printf("node shut down")
 }
