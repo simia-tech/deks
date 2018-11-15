@@ -129,6 +129,26 @@ func (s *Store) Len() int {
 	return s.count
 }
 
+// DeletedLen returns the length of deleted values.
+func (s *Store) DeletedLen() int {
+	s.containersRWMutex.RLock()
+	result := len(s.containers) - s.count
+	s.containersRWMutex.RUnlock()
+	return result
+}
+
+// Tidy removes all deleted values from the store.
+func (s *Store) Tidy() error {
+	s.containersRWMutex.Lock()
+	for hk, c := range s.containers {
+		if c.isDeleted() {
+			delete(s.containers, hk)
+		}
+	}
+	s.containersRWMutex.Unlock()
+	return nil
+}
+
 // State returns a set containing all keys and revisions.
 func (s *Store) State() *Set {
 	return s.state

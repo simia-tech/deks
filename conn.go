@@ -85,6 +85,15 @@ func (c *Conn) Keys() ([][]byte, error) {
 	return keys, nil
 }
 
+// Tidy cleans up the store.
+func (c *Conn) Tidy() error {
+	response := c.client.Cmd(cmdTidy)
+	if !isOK(response) {
+		return errx.Errorf("tidy command failed")
+	}
+	return nil
+}
+
 // Reconsilate sets the server into reconsilation mode and returns the underlying connection.
 func (c *Conn) Reconsilate() (net.Conn, error) {
 	response := c.client.Cmd(cmdReconcilate)

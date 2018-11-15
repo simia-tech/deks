@@ -88,6 +88,22 @@ func TestStoreEach(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestStoreTidy(t *testing.T) {
+	e := setUpTestEnvironment(t)
+	defer e.tearDown()
+
+	require.NoError(t, e.storeOne.Set(testKey, testValue))
+	require.NoError(t, e.storeOne.Delete(testKey))
+	require.Equal(t, 0, e.storeOne.Len())
+
+	require.Equal(t, 1, e.storeOne.DeletedLen())
+
+	require.NoError(t, e.storeOne.Tidy())
+
+	assert.Equal(t, 0, e.storeOne.DeletedLen())
+	assert.Equal(t, 0, e.storeOne.Len())
+}
+
 func TestStoreConcurrentAccess(t *testing.T) {
 	e := setUpTestEnvironment(t)
 	defer e.tearDown()

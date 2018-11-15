@@ -18,6 +18,7 @@ const (
 	cmdGet          = "get"
 	cmdDelete       = "del"
 	cmdKeys         = "keys"
+	cmdTidy         = "tidy"
 	cmdSetContainer = "cset"        // hidden
 	cmdGetContainer = "cget"        // hidden
 	cmdReconcilate  = "reconcilate" // hidden
@@ -28,6 +29,7 @@ set <key> <value> - sets <value> at <key>
 get <key>         - returns value at <key>
 del <key>         - removes value at <key>
 keys              - returns all keys
+tidy              - cleans up the store
 quit              - closes the connection
 `
 )
@@ -204,6 +206,11 @@ func (n *Node) handleConn(conn net.Conn) error {
 				w.WriteBulk(key)
 				return nil
 			})
+		case cmdTidy:
+			if err := n.store.Tidy(); err != nil {
+				return errx.Annotatef(err, "tidy")
+			}
+			w.WriteString("OK")
 		case cmdSetContainer:
 			kh := keyHash{}
 			copy(kh[:], arguments[0][:keyHashSize])
