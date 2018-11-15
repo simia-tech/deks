@@ -26,79 +26,101 @@ func (kh keyHash) String() string {
 
 // Store defines a key-value store.
 type Store struct {
-	items        map[keyHash]*item
-	itemsRWMutex sync.RWMutex
-	state        *Set
-	count        int
-	updateFn     func(keyHash, *item)
+	containers        map[keyHash]*container
+	containersRWMutex sync.RWMutex
+	state             *Set
+	count             int
+	updateFn          func(keyHash, *container)
 }
 
 // NewStore returns a new store.
 func NewStore() *Store {
 	return &Store{
-		items: make(map[keyHash]*item),
-		state: NewSet(),
-		count: 0,
+		containers: make(map[keyHash]*container),
+		state:      NewSet(),
+		count:      0,
 	}
 }
 
 // Set sets the provided value at the provided key.
 func (s *Store) Set(key, value []byte) error {
 	kh := hashKey(key)
-	s.itemsRWMutex.Lock()
-	if i, ok := s.items[kh]; ok {
-		s.state.Remove(stateItem(kh, i.revision))
-		i.value = value
-		i.revision++
-		if !i.deletedAt.IsZero() {
-			i.deletedAt = time.Time{}
+	s.containersRWMutex.Lock()
+	if c, ok := s.containers[kh]; ok {
+		s.state.Remove(stateItem(kh, c.revision))
+		c.value = value
+		c.revision++
+		if c.isDeleted() {
+			c.undelete()
 			s.count++
 		}
-		s.state.Insert(stateItem(kh, i.revision))
-		s.notify(kh, i)
+		s.state.Insert(stateItem(kh, c.revision))
+		s.notify(kh, c)
 	} else {
-		i := &item{value: value, revision: 0, deletedAt: time.Time{}}
-		s.items[kh] = i
+		c := &container{
+			key:       key,
+			value:     value,
+			revision:  0,
+			deletedAt: time.Time{},
+		}
+		s.containers[kh] = c
 		s.state.Insert(stateItem(kh, 0))
-		s.notify(kh, i)
+		s.notify(kh, c)
 		s.count++
 	}
-	s.itemsRWMutex.Unlock()
+	s.containersRWMutex.Unlock()
 	return nil
 }
 
 // Get returns the value at the provided key. If no value exists, nil is returned.
 func (s *Store) Get(key []byte) ([]byte, error) {
 	kh := hashKey(key)
-	s.itemsRWMutex.RLock()
-	i, ok := s.items[kh]
+	s.containersRWMutex.RLock()
+	c, ok := s.containers[kh]
 	if ok {
-		if !i.deletedAt.IsZero() {
-			s.itemsRWMutex.RUnlock()
+		if c.isDeleted() {
+			s.containersRWMutex.RUnlock()
 			return nil, nil
 		}
-		value := i.value
-		s.itemsRWMutex.RUnlock()
+		value := c.value
+		s.containersRWMutex.RUnlock()
 		return value, nil
 	}
-	s.itemsRWMutex.RUnlock()
+	s.containersRWMutex.RUnlock()
 	return nil, nil
 }
 
 // Delete removes the value at the provided key.
 func (s *Store) Delete(key []byte) error {
 	k := hashKey(key)
-	s.itemsRWMutex.Lock()
-	if i, ok := s.items[k]; ok {
-		s.state.Remove(stateItem(k, i.revision))
-		i.value = nil
-		i.deletedAt = time.Now()
-		i.revision++
-		s.state.Insert(stateItem(k, i.revision))
-		s.count--
+	s.containersRWMutex.Lock()
+	if c, ok := s.containers[k]; ok {
+		if !c.isDeleted() {
+			s.state.Remove(stateItem(k, c.revision))
+			c.value = nil
+			c.delete()
+			c.revision++
+			s.state.Insert(stateItem(k, c.revision))
+			s.count--
+		}
 	}
-	s.itemsRWMutex.Unlock()
+	s.containersRWMutex.Unlock()
 	return nil
+}
+
+// Each interates over all key-value-pairs.
+func (s *Store) Each(fn func([]byte, []byte) error) (err error) {
+	s.containersRWMutex.RLock()
+	for _, c := range s.containers {
+		if c.isDeleted() {
+			continue
+		}
+		if err = fn(c.key, c.value); err != nil {
+			break
+		}
+	}
+	s.containersRWMutex.RUnlock()
+	return
 }
 
 // Len returns the length of the store.
@@ -111,80 +133,56 @@ func (s *Store) State() *Set {
 	return s.state
 }
 
-func (s *Store) setItem(kh keyHash, bytes []byte) error {
-	ni := &item{}
-	if err := ni.UnmarshalBinary(bytes); err != nil {
+func (s *Store) setContainer(kh keyHash, bytes []byte) error {
+	nc := &container{}
+	if err := nc.UnmarshalBinary(bytes); err != nil {
 		return errx.Annotatef(err, "unmarshal binary")
 	}
 
-	s.itemsRWMutex.Lock()
-	if i, ok := s.items[kh]; ok {
-		s.state.Remove(stateItem(kh, i.revision))
-		s.items[kh] = ni
+	s.containersRWMutex.Lock()
+	if c, ok := s.containers[kh]; ok {
+		s.state.Remove(stateItem(kh, c.revision))
+		s.containers[kh] = nc
 		switch {
-		case i.deletedAt.IsZero() && !ni.deletedAt.IsZero():
+		case !c.isDeleted() && nc.isDeleted():
 			s.count--
-		case !i.deletedAt.IsZero() && ni.deletedAt.IsZero():
+		case c.isDeleted() && !nc.isDeleted():
 			s.count++
 		}
-		s.state.Insert(stateItem(kh, ni.revision))
+		s.state.Insert(stateItem(kh, nc.revision))
 	} else {
-		s.items[kh] = ni
+		s.containers[kh] = nc
 		s.state.Insert(stateItem(kh, 0))
-		if ni.deletedAt.IsZero() {
+		if !nc.isDeleted() {
 			s.count++
 		}
 	}
-	s.itemsRWMutex.Unlock()
+	s.containersRWMutex.Unlock()
 
 	return nil
 }
 
-func (s *Store) getItem(kh keyHash) ([]byte, error) {
-	s.itemsRWMutex.RLock()
-	i, ok := s.items[kh]
+func (s *Store) getContainer(kh keyHash) ([]byte, error) {
+	s.containersRWMutex.RLock()
+	c, ok := s.containers[kh]
 	if ok {
-		bytes, err := i.MarshalBinary()
+		bytes, err := c.MarshalBinary()
 		if err != nil {
-			s.itemsRWMutex.RUnlock()
+			s.containersRWMutex.RUnlock()
 			return nil, errx.Annotatef(err, "marshal binary")
 		}
-		s.itemsRWMutex.RUnlock()
+		s.containersRWMutex.RUnlock()
 		return bytes, nil
 	}
-	s.itemsRWMutex.RUnlock()
+	s.containersRWMutex.RUnlock()
 	return nil, nil
 }
 
-func (s *Store) notify(kh keyHash, item *item) {
+func (s *Store) notify(kh keyHash, c *container) {
 	if s.updateFn == nil {
 		return
 	}
-	s.updateFn(kh, item)
-}
-
-type item struct {
-	value     []byte
-	revision  uint64
-	deletedAt time.Time
-}
-
-func (i *item) MarshalBinary() ([]byte, error) {
-	buffer := make([]byte, len(i.value)+16)
-	binary.BigEndian.PutUint64(buffer[:8], i.revision)
-	binary.BigEndian.PutUint64(buffer[8:16], uint64(i.deletedAt.Unix()))
-	copy(buffer[16:], i.value)
-	return buffer, nil
-}
-
-func (i *item) UnmarshalBinary(data []byte) error {
-	if len(data) < 16 {
-		return errx.Errorf("need at least 16 bytes")
-	}
-	i.revision = binary.BigEndian.Uint64(data[:8])
-	i.deletedAt = time.Unix(int64(binary.BigEndian.Uint64(data[8:16])), 0)
-	i.value = data[16:]
-	return nil
+	s.updateFn(kh, c)
 }
 
 func hashKey(k []byte) keyHash {

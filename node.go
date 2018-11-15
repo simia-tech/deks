@@ -12,18 +12,20 @@ import (
 )
 
 const (
-	cmdHelp        = "help"
-	cmdQuit        = `quit`
-	cmdSet         = "set"
-	cmdGet         = "get"
-	cmdSetItem     = "iset"
-	cmdGetItem     = "iget"
-	cmdReconcilate = "reconcilate"
+	cmdHelp         = "help"
+	cmdQuit         = `quit`
+	cmdSet          = "set"
+	cmdGet          = "get"
+	cmdKeys         = "keys"
+	cmdSetContainer = "cset"        // hidden
+	cmdGetContainer = "cget"        // hidden
+	cmdReconcilate  = "reconcilate" // hidden
 
 	help = `Supported commands:
 help              - prints this help message
 set <key> <value> - sets <value> at <key>
 get <key>         - returns value at <key>
+keys              - returns all keys
 quit              - closes the connection
 `
 )
@@ -113,12 +115,12 @@ func (n *Node) Reconcilate(network, address string) (int, error) {
 
 	for _, keyHash := range keyHashes {
 		kh := newKeyHash(keyHash)
-		item, err := payloadConn.getItem(kh)
+		c, err := payloadConn.getContainer(kh)
 		if err != nil {
-			return 0, errx.Annotatef(err, "get item")
+			return 0, errx.Annotatef(err, "get container")
 		}
-		if err := n.store.setItem(kh, item); err != nil {
-			return 0, errx.Annotatef(err, "set item")
+		if err := n.store.setContainer(kh, c); err != nil {
+			return 0, errx.Annotatef(err, "set container")
 		}
 	}
 
@@ -189,21 +191,27 @@ func (n *Node) handleConn(conn net.Conn) error {
 				return errx.Annotatef(err, "get [%s]", arguments[0])
 			}
 			w.WriteBulk(value)
-		case cmdSetItem:
+		case cmdKeys:
+			w.WriteArray(n.store.Len())
+			n.store.Each(func(key, _ []byte) error {
+				w.WriteBulk(key)
+				return nil
+			})
+		case cmdSetContainer:
 			kh := keyHash{}
 			copy(kh[:], arguments[0][:keyHashSize])
-			if err := n.store.setItem(kh, arguments[1]); err != nil {
-				return errx.Annotatef(err, "set item [%s]", kh)
+			if err := n.store.setContainer(kh, arguments[1]); err != nil {
+				return errx.Annotatef(err, "set container [%s]", kh)
 			}
 			w.WriteString("OK")
-		case cmdGetItem:
+		case cmdGetContainer:
 			kh := keyHash{}
 			copy(kh[:], arguments[0][:keyHashSize])
-			item, err := n.store.getItem(kh)
+			c, err := n.store.getContainer(kh)
 			if err != nil {
-				return errx.Annotatef(err, "get item [%s]", kh)
+				return errx.Annotatef(err, "get container [%s]", kh)
 			}
-			w.WriteBulk(item)
+			w.WriteBulk(c)
 		case cmdReconcilate:
 			w.WriteString("OK")
 			if err := w.Flush(); err != nil {
@@ -225,8 +233,8 @@ func (n *Node) handleConn(conn net.Conn) error {
 	return nil
 }
 
-func (n *Node) update(kh keyHash, item *item) {
+func (n *Node) update(kh keyHash, container *container) {
 	for _, stream := range n.streams {
-		stream.update(kh, item)
+		stream.update(kh, container)
 	}
 }

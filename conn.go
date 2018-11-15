@@ -58,6 +58,24 @@ func (c *Conn) Get(key []byte) ([]byte, error) {
 	return bytes, nil
 }
 
+// Keys returns a slice containing all keys.
+func (c *Conn) Keys() ([][]byte, error) {
+	response := c.client.Cmd(cmdKeys)
+	items, err := response.Array()
+	if err != nil {
+		return nil, errx.Annotatef(err, "response array")
+	}
+	keys := make([][]byte, len(items))
+	for index, item := range items {
+		key, err := item.Bytes()
+		if err != nil {
+			return nil, errx.Annotatef(err, "response bytes")
+		}
+		keys[index] = key
+	}
+	return keys, nil
+}
+
 // Reconsilate sets the server into reconsilation mode and returns the underlying connection.
 func (c *Conn) Reconsilate() (net.Conn, error) {
 	response := c.client.Cmd(cmdReconcilate)
@@ -68,18 +86,18 @@ func (c *Conn) Reconsilate() (net.Conn, error) {
 	return c.conn, nil
 }
 
-func (c *Conn) setItem(kh keyHash, item []byte) error {
-	response := c.client.Cmd(cmdSetItem, kh[:], item)
+func (c *Conn) setContainer(kh keyHash, item []byte) error {
+	response := c.client.Cmd(cmdSetContainer, kh[:], item)
 	if !isOK(response) {
-		return errx.Errorf("set item command failed")
+		return errx.Errorf("set container command failed")
 	}
 	return nil
 }
 
-func (c *Conn) getItem(kh keyHash) ([]byte, error) {
-	response := c.client.Cmd(cmdGetItem, kh[:])
+func (c *Conn) getContainer(kh keyHash) ([]byte, error) {
+	response := c.client.Cmd(cmdGetContainer, kh[:])
 	if !response.IsType(redis.Str) {
-		return nil, errx.Errorf("get item command failed")
+		return nil, errx.Errorf("get container command failed")
 	}
 	bytes, err := response.Bytes()
 	if err != nil {

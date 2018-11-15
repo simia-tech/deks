@@ -17,8 +17,8 @@ type stream struct {
 }
 
 type streamUpdate struct {
-	keyHash keyHash
-	item    *item
+	keyHash   keyHash
+	container *container
 }
 
 func newStream(network, address string) *stream {
@@ -66,24 +66,22 @@ func (s *stream) connect() error {
 		case <-s.ctx.Done():
 			return nil
 		case u := <-updates:
-			bytes, err := u.item.MarshalBinary()
+			bytes, err := u.container.MarshalBinary()
 			if err != nil {
 				return errx.Annotatef(err, "marshal binary")
 			}
-			if err := conn.setItem(u.keyHash, bytes); err != nil {
-				return errx.Annotatef(err, "set item")
+			if err := conn.setContainer(u.keyHash, bytes); err != nil {
+				return errx.Annotatef(err, "set container")
 			}
 		}
 	}
-
-	return nil
 }
 
-func (s *stream) update(kh keyHash, item *item) {
+func (s *stream) update(kh keyHash, container *container) {
 	if s.updates == nil {
 		return
 	}
-	s.updates <- streamUpdate{kh, item}
+	s.updates <- streamUpdate{kh, container}
 }
 
 func (s *stream) close() {

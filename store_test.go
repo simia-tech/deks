@@ -73,6 +73,21 @@ func TestStoreDelete(t *testing.T) {
 	assert.Equal(t, []edkvs.Item{{0xa6, 0x2f, 0x22, 0x25, 0xbf, 0x70, 0xbf, 0xac, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1}}, e.storeOne.State().Items())
 }
 
+func TestStoreEach(t *testing.T) {
+	e := setUpTestEnvironment(t)
+	defer e.tearDown()
+
+	require.NoError(t, e.storeOne.Set(testKey, testValue))
+	require.Equal(t, 1, e.storeOne.Len())
+
+	err := e.storeOne.Each(func(key, value []byte) error {
+		assert.Equal(t, testKey, key)
+		assert.Equal(t, testValue, value)
+		return nil
+	})
+	require.NoError(t, err)
+}
+
 func TestStoreConcurrentAccess(t *testing.T) {
 	e := setUpTestEnvironment(t)
 	defer e.tearDown()
