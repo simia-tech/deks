@@ -13,8 +13,8 @@ type EDKVS struct {
 }
 
 // NewEDKVS returns a new EDKVS.
-func NewEDKVS(o Options) (*EDKVS, error) {
-	store := NewStore()
+func NewEDKVS(o Options, m Metric) (*EDKVS, error) {
+	store := NewStore(m)
 	node, err := NewNode(store, o.ListenURL)
 	if err != nil {
 		return nil, errx.Annotatef(err, "new node")

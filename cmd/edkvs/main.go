@@ -30,11 +30,13 @@ func main() {
 		}
 	}
 
+	m := edkvs.NewMetricLog()
+
 	edkvs, err := edkvs.NewEDKVS(edkvs.Options{
 		ListenURL:             opts.ListenURL,
 		PeerURLs:              opts.PeerURLs,
 		PeerReconnectInterval: opts.PeerReconnectInterval,
-	})
+	}, m)
 	if err != nil {
 		log.Fatal(err)
 	}

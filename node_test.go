@@ -84,7 +84,7 @@ func TestNodeStreamUpdatesToTwoOtherNodes(t *testing.T) {
 	e := setUpTestEnvironment(t)
 	defer e.tearDown()
 
-	storeThree := edkvs.NewStore()
+	storeThree := edkvs.NewStore(e.metric)
 	nodeThree, err := edkvs.NewNode(storeThree, "tcp://localhost:0")
 	require.NoError(t, err)
 

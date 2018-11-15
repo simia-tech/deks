@@ -9,6 +9,7 @@ import (
 )
 
 type environment struct {
+	metric   edkvs.Metric
 	storeOne *edkvs.Store
 	nodeOne  *edkvs.Node
 	storeTwo *edkvs.Store
@@ -17,15 +18,18 @@ type environment struct {
 }
 
 func setUpTestEnvironment(tb testing.TB) *environment {
-	storeOne := edkvs.NewStore()
+	m := edkvs.NewMetricMock()
+
+	storeOne := edkvs.NewStore(m)
 	nodeOne, err := edkvs.NewNode(storeOne, "tcp://localhost:0")
 	require.NoError(tb, err)
 
-	storeTwo := edkvs.NewStore()
+	storeTwo := edkvs.NewStore(m)
 	nodeTwo, err := edkvs.NewNode(storeTwo, "tcp://localhost:0")
 	require.NoError(tb, err)
 
 	return &environment{
+		metric:   m,
 		storeOne: storeOne,
 		nodeOne:  nodeOne,
 		storeTwo: storeTwo,

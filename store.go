@@ -26,19 +26,23 @@ func (kh keyHash) String() string {
 
 // Store defines a key-value store.
 type Store struct {
+	metric            Metric
 	containers        map[keyHash]*container
 	containersRWMutex sync.RWMutex
 	state             *Set
 	count             int
+	deletedCount      int
 	updateFn          func(keyHash, *container)
 }
 
 // NewStore returns a new store.
-func NewStore() *Store {
+func NewStore(m Metric) *Store {
 	return &Store{
-		containers: make(map[keyHash]*container),
-		state:      NewSet(),
-		count:      0,
+		metric:       m,
+		containers:   make(map[keyHash]*container),
+		state:        NewSet(),
+		count:        0,
+		deletedCount: 0,
 	}
 }
 
@@ -53,6 +57,8 @@ func (s *Store) Set(key, value []byte) error {
 		if c.isDeleted() {
 			c.undelete()
 			s.count++
+			s.deletedCount--
+			s.metric.CountChanged(s.count, s.deletedCount)
 		}
 		s.state.Insert(stateItem(kh, c.revision))
 		s.notify(kh, c)
@@ -67,6 +73,7 @@ func (s *Store) Set(key, value []byte) error {
 		s.state.Insert(stateItem(kh, 0))
 		s.notify(kh, c)
 		s.count++
+		s.metric.CountChanged(s.count, s.deletedCount)
 	}
 	s.containersRWMutex.Unlock()
 	return nil
@@ -103,6 +110,8 @@ func (s *Store) Delete(key []byte) error {
 			s.state.Insert(stateItem(hk, c.revision))
 			s.notify(hk, c)
 			s.count--
+			s.deletedCount++
+			s.metric.CountChanged(s.count, s.deletedCount)
 		}
 	}
 	s.containersRWMutex.Unlock()
@@ -131,10 +140,7 @@ func (s *Store) Len() int {
 
 // DeletedLen returns the length of deleted values.
 func (s *Store) DeletedLen() int {
-	s.containersRWMutex.RLock()
-	result := len(s.containers) - s.count
-	s.containersRWMutex.RUnlock()
-	return result
+	return s.deletedCount
 }
 
 // Tidy removes all deleted values from the store.
@@ -143,8 +149,10 @@ func (s *Store) Tidy() error {
 	for hk, c := range s.containers {
 		if c.isDeleted() {
 			delete(s.containers, hk)
+			s.deletedCount--
 		}
 	}
+	s.metric.CountChanged(s.count, s.deletedCount)
 	s.containersRWMutex.Unlock()
 	return nil
 }
@@ -167,16 +175,23 @@ func (s *Store) setContainer(kh keyHash, bytes []byte) error {
 		switch {
 		case !c.isDeleted() && nc.isDeleted():
 			s.count--
+			s.deletedCount++
+			s.metric.CountChanged(s.count, s.deletedCount)
 		case c.isDeleted() && !nc.isDeleted():
 			s.count++
+			s.deletedCount--
+			s.metric.CountChanged(s.count, s.deletedCount)
 		}
 		s.state.Insert(stateItem(kh, nc.revision))
 	} else {
 		s.containers[kh] = nc
 		s.state.Insert(stateItem(kh, 0))
-		if !nc.isDeleted() {
+		if nc.isDeleted() {
+			s.deletedCount++
+		} else {
 			s.count++
 		}
+		s.metric.CountChanged(s.count, s.deletedCount)
 	}
 	s.containersRWMutex.Unlock()
 
