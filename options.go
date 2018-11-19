@@ -15,4 +15,7 @@ type Options struct {
 
 	// PeerReconnectInterval defines a duration after which a failing peer is reconnected.
 	PeerReconnectInterval time.Duration
+
+	// TidyInterval defines the interval in which the store is cleaned up.
+	TidyInterval time.Duration
 }

@@ -13,8 +13,9 @@ import (
 type options struct {
 	ListenURL             string        `short:"l" long:"listen" default:"tcp://localhost:0" description:"listener address"`
 	PeerURLs              []string      `short:"p" long:"peer" description:"address of target node. multiple specifications possible"`
-	PeerPingInterval      time.Duration `short:"t" long:"peer-ping-interval" default:"500ms" description:"interval in which a peer is pinged in order to test it's availbility"`
+	PeerPingInterval      time.Duration `short:"b" long:"peer-ping-interval" default:"500ms" description:"interval in which a peer is pinged in order to test it's availbility"`
 	PeerReconnectInterval time.Duration `short:"r" long:"peer-reconnect-interval" default:"5s" description:"duration after which a failing peer is reconnected"`
+	TidyInterval          time.Duration `short:"t" long:"tidy-interval" default:"5s" description:"interval in which the store is cleaned up"`
 }
 
 var (
@@ -38,6 +39,7 @@ func main() {
 		PeerURLs:              opts.PeerURLs,
 		PeerPingInterval:      opts.PeerPingInterval,
 		PeerReconnectInterval: opts.PeerReconnectInterval,
+		TidyInterval:          opts.TidyInterval,
 	}, m)
 	if err != nil {
 		log.Fatal(err)

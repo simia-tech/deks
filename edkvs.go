@@ -1,15 +1,18 @@
 package edkvs
 
 import (
+	"context"
 	"log"
+	"time"
 
 	"github.com/simia-tech/errx"
 )
 
 // EDKVS defines the Embedded Distributed Key-Value Store.
 type EDKVS struct {
-	store *Store
-	node  *Node
+	store  *Store
+	node   *Node
+	cancel context.CancelFunc
 }
 
 // NewEDKVS returns a new EDKVS.
@@ -20,16 +23,33 @@ func NewEDKVS(o Options, m Metric) (*EDKVS, error) {
 		return nil, errx.Annotatef(err, "new node")
 	}
 	for _, peerURL := range o.PeerURLs {
-		count, err := node.Reconcilate(peerURL)
+		_, err := node.Reconcilate(peerURL)
 		if err != nil {
 			log.Printf("reconsilate: %v", err)
 		}
-		log.Printf("reconsilated %d values from %s", count, peerURL)
 		node.AddPeer(peerURL, o.PeerPingInterval, o.PeerReconnectInterval)
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		ticker := time.NewTicker(o.TidyInterval)
+		for {
+			select {
+			case <-ctx.Done():
+				ticker.Stop()
+				return
+			case <-ticker.C:
+				if err := store.Tidy(); err != nil {
+					log.Printf("tidy: %v", err)
+				}
+			}
+		}
+	}()
+
 	return &EDKVS{
-		store: store,
-		node:  node,
+		store:  store,
+		node:   node,
+		cancel: cancel,
 	}, nil
 }
 
@@ -40,5 +60,6 @@ func (e *EDKVS) ListenURL() string {
 
 // Close tears down the EDKVS.
 func (e *EDKVS) Close() error {
+	e.cancel()
 	return e.node.Close()
 }

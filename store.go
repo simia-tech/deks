@@ -146,13 +146,17 @@ func (s *Store) DeletedLen() int {
 // Tidy removes all deleted values from the store.
 func (s *Store) Tidy() error {
 	s.containersRWMutex.Lock()
+	changed := false
 	for hk, c := range s.containers {
 		if c.isDeleted() {
 			delete(s.containers, hk)
 			s.deletedCount--
+			changed = true
 		}
 	}
-	s.metric.CountChanged(s.count, s.deletedCount)
+	if changed {
+		s.metric.CountChanged(s.count, s.deletedCount)
+	}
 	s.containersRWMutex.Unlock()
 	return nil
 }
