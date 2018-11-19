@@ -41,6 +41,15 @@ func (c *Conn) Close() error {
 	return c.conn.Close()
 }
 
+// Ping sends a ping to the server and fails if the connection is broken.
+func (c *Conn) Ping() error {
+	response := c.client.Cmd(cmdPing)
+	if !isOK(response) {
+		return errx.Errorf("ping command failed")
+	}
+	return nil
+}
+
 // Set sets the provided value at the provided key.
 func (c *Conn) Set(key, value []byte) error {
 	response := c.client.Cmd(cmdSet, key, value)

@@ -15,7 +15,7 @@ type EDKVS struct {
 // NewEDKVS returns a new EDKVS.
 func NewEDKVS(o Options, m Metric) (*EDKVS, error) {
 	store := NewStore(m)
-	node, err := NewNode(store, o.ListenURL)
+	node, err := NewNode(store, o.ListenURL, m)
 	if err != nil {
 		return nil, errx.Annotatef(err, "new node")
 	}
@@ -25,7 +25,7 @@ func NewEDKVS(o Options, m Metric) (*EDKVS, error) {
 			log.Printf("reconsilate: %v", err)
 		}
 		log.Printf("reconsilated %d values from %s", count, peerURL)
-		node.AddPeer(peerURL, o.PeerReconnectInterval)
+		node.AddPeer(peerURL, o.PeerPingInterval, o.PeerReconnectInterval)
 	}
 	return &EDKVS{
 		store: store,

@@ -53,3 +53,13 @@ func TestConnKeys(t *testing.T) {
 	require.Len(t, keys, 1)
 	assert.Equal(t, testKey, keys[0])
 }
+
+func TestConnPing(t *testing.T) {
+	e := setUpTestEnvironment(t)
+	defer e.tearDown()
+
+	conn, err := edkvs.Dial(e.nodeOne.ListenURL())
+	require.NoError(t, err)
+
+	require.NoError(t, conn.Ping())
+}

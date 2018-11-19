@@ -13,6 +13,7 @@ import (
 type options struct {
 	ListenURL             string        `short:"l" long:"listen" default:"tcp://localhost:0" description:"listener address"`
 	PeerURLs              []string      `short:"p" long:"peer" description:"address of target node. multiple specifications possible"`
+	PeerPingInterval      time.Duration `short:"t" long:"peer-ping-interval" default:"500ms" description:"interval in which a peer is pinged in order to test it's availbility"`
 	PeerReconnectInterval time.Duration `short:"r" long:"peer-reconnect-interval" default:"5s" description:"duration after which a failing peer is reconnected"`
 }
 
@@ -35,6 +36,7 @@ func main() {
 	edkvs, err := edkvs.NewEDKVS(edkvs.Options{
 		ListenURL:             opts.ListenURL,
 		PeerURLs:              opts.PeerURLs,
+		PeerPingInterval:      opts.PeerPingInterval,
 		PeerReconnectInterval: opts.PeerReconnectInterval,
 	}, m)
 	if err != nil {

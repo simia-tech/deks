@@ -2,6 +2,7 @@ package edkvs
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/url"
@@ -15,7 +16,8 @@ import (
 
 const (
 	cmdHelp         = "help"
-	cmdQuit         = `quit`
+	cmdQuit         = "quit"
+	cmdPing         = "ping"
 	cmdSet          = "set"
 	cmdGet          = "get"
 	cmdDelete       = "del"
@@ -40,12 +42,13 @@ quit              - closes the connection
 type Node struct {
 	store    *Store
 	listener net.Listener
+	metric   Metric
 	peer     *recon.Peer
 	streams  []*stream
 }
 
 // NewNode returns a new node.
-func NewNode(store *Store, listenURL string) (*Node, error) {
+func NewNode(store *Store, listenURL string, m Metric) (*Node, error) {
 	network, address, err := parseURL(listenURL)
 	if err != nil {
 		return nil, errx.Annotatef(err, "parse listen url [%s]", listenURL)
@@ -63,6 +66,7 @@ func NewNode(store *Store, listenURL string) (*Node, error) {
 	n := &Node{
 		store:    store,
 		listener: l,
+		metric:   m,
 		peer:     peer,
 		streams:  make([]*stream, 0),
 	}
@@ -83,7 +87,7 @@ func (n *Node) Close() error {
 		stream.close()
 	}
 	if err := n.listener.Close(); err != nil {
-		if opErr, ok := err.(*net.OpError); ok && opErr.Err.Error() == "use of closed network connection" {
+		if isClosedNetworkError(err) {
 			return nil
 		}
 		return errx.Annotatef(err, "close listener")
@@ -92,8 +96,12 @@ func (n *Node) Close() error {
 }
 
 // AddPeer adds another node as a target for updates.
-func (n *Node) AddPeer(peerURL string, peerReconnectInterval time.Duration) {
-	n.streams = append(n.streams, newStream(peerURL, peerReconnectInterval))
+func (n *Node) AddPeer(
+	peerURL string,
+	peerPingInterval time.Duration,
+	peerReconnectInterval time.Duration,
+) {
+	n.streams = append(n.streams, newStream(peerURL, peerPingInterval, peerReconnectInterval, n.metric))
 }
 
 // Reconcilate performs a reconsiliation with the node at the provided address.
@@ -149,20 +157,27 @@ func (n *Node) acceptLoop() {
 func (n *Node) accept() (bool, error) {
 	conn, err := n.listener.Accept()
 	if err != nil {
-		if opErr, ok := err.(*net.OpError); ok && opErr.Err.Error() == "use of closed network connection" {
+		if isClosedNetworkError(err) {
 			return true, nil
 		}
 		return true, errx.Annotatef(err, "accept")
 	}
+
+	clientURL := urlFor(conn.RemoteAddr())
 
 	go func() {
 		if err := n.handleConn(conn); err != nil {
 			log.Printf("conn %s: %v", conn.RemoteAddr(), err)
 		}
 		if err := conn.Close(); err != nil {
-			log.Printf("close conn %s: %v", conn.RemoteAddr(), err)
+			if !isClosedNetworkError(err) {
+				log.Printf("close conn %s: %v", conn.RemoteAddr(), err)
+			}
 		}
+		n.metric.ClientDisconnected(clientURL)
 	}()
+
+	n.metric.ClientConnected(clientURL)
 
 	return false, nil
 }
@@ -174,6 +189,10 @@ func (n *Node) handleConn(conn net.Conn) error {
 	done := false
 	for !done {
 		cmd, err := r.ReadCommand()
+		if err == io.EOF {
+			done = true
+			continue
+		}
 		if err != nil {
 			return errx.Annotatef(err, "read command")
 		}
@@ -186,6 +205,8 @@ func (n *Node) handleConn(conn net.Conn) error {
 			w.WriteBulkString(help)
 		case cmdQuit:
 			done = true
+			w.WriteString("OK")
+		case cmdPing:
 			w.WriteString("OK")
 		case cmdSet:
 			if err := n.store.Set(arguments[0], arguments[1]); err != nil {
@@ -262,4 +283,15 @@ func parseURL(u string) (string, string, error) {
 		return "", "", errx.Annotatef(err, "parse url [%s]", u)
 	}
 	return url.Scheme, url.Host, nil
+}
+
+func urlFor(addr net.Addr) string {
+	return fmt.Sprintf("%s://%s", addr.Network(), addr.String())
+}
+
+func isClosedNetworkError(err error) bool {
+	if opErr, ok := err.(*net.OpError); ok && opErr.Err.Error() == "use of closed network connection" {
+		return true
+	}
+	return false
 }

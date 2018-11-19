@@ -68,7 +68,7 @@ func TestNodeStreamUpdatesToAnotherNode(t *testing.T) {
 	e := setUpTestEnvironment(t)
 	defer e.tearDown()
 
-	e.nodeOne.AddPeer(e.nodeTwo.ListenURL(), time.Minute)
+	e.nodeOne.AddPeer(e.nodeTwo.ListenURL(), time.Minute, time.Minute)
 	time.Sleep(100 * time.Millisecond)
 
 	require.NoError(t, e.storeOne.Set(testKey, testValue))
@@ -85,11 +85,11 @@ func TestNodeStreamUpdatesToTwoOtherNodes(t *testing.T) {
 	defer e.tearDown()
 
 	storeThree := edkvs.NewStore(e.metric)
-	nodeThree, err := edkvs.NewNode(storeThree, "tcp://localhost:0")
+	nodeThree, err := edkvs.NewNode(storeThree, "tcp://localhost:0", e.metric)
 	require.NoError(t, err)
 
-	e.nodeOne.AddPeer(e.nodeTwo.ListenURL(), time.Minute)
-	e.nodeOne.AddPeer(nodeThree.ListenURL(), time.Minute)
+	e.nodeOne.AddPeer(e.nodeTwo.ListenURL(), time.Minute, time.Minute)
+	e.nodeOne.AddPeer(nodeThree.ListenURL(), time.Minute, time.Minute)
 	time.Sleep(100 * time.Millisecond)
 
 	require.NoError(t, e.storeOne.Set(testKey, testValue))
@@ -113,7 +113,7 @@ func TestNodeStreamUpdatesToAFailingNode(t *testing.T) {
 	listenURL := e.nodeTwo.ListenURL()
 	require.NoError(t, e.nodeTwo.Close())
 
-	e.nodeOne.AddPeer(listenURL, time.Minute)
+	e.nodeOne.AddPeer(listenURL, time.Minute, time.Minute)
 	time.Sleep(100 * time.Millisecond)
 
 	require.NoError(t, e.storeOne.Set(testKey, testValue))

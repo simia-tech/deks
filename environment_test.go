@@ -21,11 +21,11 @@ func setUpTestEnvironment(tb testing.TB) *environment {
 	m := edkvs.NewMetricMock()
 
 	storeOne := edkvs.NewStore(m)
-	nodeOne, err := edkvs.NewNode(storeOne, "tcp://localhost:0")
+	nodeOne, err := edkvs.NewNode(storeOne, "tcp://localhost:0", m)
 	require.NoError(tb, err)
 
 	storeTwo := edkvs.NewStore(m)
-	nodeTwo, err := edkvs.NewNode(storeTwo, "tcp://localhost:0")
+	nodeTwo, err := edkvs.NewNode(storeTwo, "tcp://localhost:0", m)
 	require.NoError(tb, err)
 
 	return &environment{
