@@ -10,7 +10,7 @@ import (
 
 // EDKVS defines the Embedded Distributed Key-Value Store.
 type EDKVS struct {
-	store  *Store
+	Store  *Store
 	node   *Node
 	cancel context.CancelFunc
 }
@@ -47,7 +47,7 @@ func NewEDKVS(o Options, m Metric) (*EDKVS, error) {
 	}()
 
 	return &EDKVS{
-		store:  store,
+		Store:  store,
 		node:   node,
 		cancel: cancel,
 	}, nil
