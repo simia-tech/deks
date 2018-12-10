@@ -1,4 +1,4 @@
-package edkvs
+package kea
 
 // MetricMock defines a metric mock.
 type MetricMock struct{}

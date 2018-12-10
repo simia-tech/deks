@@ -1,4 +1,4 @@
-package edkvs_test
+package kea_test
 
 import (
 	"testing"
@@ -6,14 +6,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/simia-tech/edkvs"
+	"github.com/simia-tech/kea"
 )
 
 func TestConnSetAndGet(t *testing.T) {
 	e := setUpTestEnvironment(t)
 	defer e.tearDown()
 
-	conn, err := edkvs.Dial(e.serverOne.ListenURL())
+	conn, err := kea.Dial(e.serverOne.ListenURL())
 	require.NoError(t, err)
 
 	require.NoError(t, conn.Set(testKey, testValue))
@@ -27,7 +27,7 @@ func TestConnDelete(t *testing.T) {
 	e := setUpTestEnvironment(t)
 	defer e.tearDown()
 
-	conn, err := edkvs.Dial(e.serverOne.ListenURL())
+	conn, err := kea.Dial(e.serverOne.ListenURL())
 	require.NoError(t, err)
 
 	require.NoError(t, conn.Set(testKey, testValue))
@@ -43,7 +43,7 @@ func TestConnKeys(t *testing.T) {
 	e := setUpTestEnvironment(t)
 	defer e.tearDown()
 
-	conn, err := edkvs.Dial(e.serverOne.ListenURL())
+	conn, err := kea.Dial(e.serverOne.ListenURL())
 	require.NoError(t, err)
 
 	require.NoError(t, conn.Set(testKey, testValue))
@@ -58,7 +58,7 @@ func TestConnPing(t *testing.T) {
 	e := setUpTestEnvironment(t)
 	defer e.tearDown()
 
-	conn, err := edkvs.Dial(e.serverOne.ListenURL())
+	conn, err := kea.Dial(e.serverOne.ListenURL())
 	require.NoError(t, err)
 
 	require.NoError(t, conn.Ping())

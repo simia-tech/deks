@@ -1,31 +1,31 @@
-package edkvs_test
+package kea_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/simia-tech/edkvs"
+	"github.com/simia-tech/kea"
 )
 
 type environment struct {
-	metric    edkvs.Metric
-	storeOne  *edkvs.Store
-	serverOne *edkvs.Server
-	storeTwo  *edkvs.Store
-	serverTwo *edkvs.Server
+	metric    kea.Metric
+	storeOne  *kea.Store
+	serverOne *kea.Server
+	storeTwo  *kea.Store
+	serverTwo *kea.Server
 	tearDown  func()
 }
 
 func setUpTestEnvironment(tb testing.TB) *environment {
-	m := edkvs.NewMetricMock()
+	m := kea.NewMetricMock()
 
-	storeOne := edkvs.NewStore(m)
-	serverOne, err := edkvs.NewServer(storeOne, "tcp://localhost:0", m)
+	storeOne := kea.NewStore(m)
+	serverOne, err := kea.NewServer(storeOne, "tcp://localhost:0", m)
 	require.NoError(tb, err)
 
-	storeTwo := edkvs.NewStore(m)
-	serverTwo, err := edkvs.NewServer(storeTwo, "tcp://localhost:0", m)
+	storeTwo := kea.NewStore(m)
+	serverTwo, err := kea.NewServer(storeTwo, "tcp://localhost:0", m)
 	require.NoError(tb, err)
 
 	return &environment{

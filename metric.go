@@ -1,4 +1,4 @@
-package edkvs
+package kea
 
 // Metric defines the EDKVS metric interface.
 type Metric interface {

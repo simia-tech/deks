@@ -57,6 +57,8 @@ github.com/simia-tech/conflux v0.0.0-20181106101757-64d282a66db6 h1:SFzIDwwksj3n
 github.com/simia-tech/conflux v0.0.0-20181106101757-64d282a66db6/go.mod h1:1FKfF2v1jsIa07tgJOsgWpvN7o/r2mjDfixmC3GXZnM=
 github.com/simia-tech/conflux v0.0.0-20181106104730-883c83fab451 h1:RbLpGDkNdXZyzTvwEA3iPIuKdp3/+LZ6j/Bl3Us6mBI=
 github.com/simia-tech/conflux v0.0.0-20181106104730-883c83fab451/go.mod h1:1FKfF2v1jsIa07tgJOsgWpvN7o/r2mjDfixmC3GXZnM=
+github.com/simia-tech/edkvs v0.0.0-20181210112916-52f35ad6d2bf h1:xmmGzEYwzCkPd+FfkbcfQFkG6Xwv5JFS1jY9q8HLORE=
+github.com/simia-tech/edkvs v0.0.0-20181210112916-52f35ad6d2bf/go.mod h1:tp7nbYdCTzq7RONzobzehk5/hu7l5sT3/yMX4rwZR8c=
 github.com/simia-tech/errx v0.1.0 h1:ZImMwBvDOmb8bVbl2mEt6qRykdrB+i7cdEpV3PV6BzM=
 github.com/simia-tech/errx v0.1.0/go.mod h1:KVUgXDfDrWKdq1OY1Bzq3m+QXRtW3Kla63uZiiGpdHE=
 github.com/sirupsen/logrus v1.2.0 h1:juTguoYk5qI21pwyTXY3B3Y5cOTH3ZUyZCg1v/mihuo=

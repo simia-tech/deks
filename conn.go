@@ -1,4 +1,4 @@
-package edkvs
+package kea
 
 import (
 	"net"
