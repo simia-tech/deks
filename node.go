@@ -8,15 +8,15 @@ import (
 	"github.com/simia-tech/errx"
 )
 
-// EDKVS defines the Embedded Distributed Key-Value Store.
-type EDKVS struct {
+// Node defines the kea node.
+type Node struct {
 	Store  *Store
 	server *Server
 	cancel context.CancelFunc
 }
 
-// NewEDKVS returns a new EDKVS.
-func NewEDKVS(o Options, m Metric) (*EDKVS, error) {
+// NewNode returns a new kea node.
+func NewNode(o Options, m Metric) (*Node, error) {
 	store := NewStore(m)
 	server, err := NewServer(store, o.ListenURL, m)
 	if err != nil {
@@ -46,7 +46,7 @@ func NewEDKVS(o Options, m Metric) (*EDKVS, error) {
 		}
 	}()
 
-	return &EDKVS{
+	return &Node{
 		Store:  store,
 		server: server,
 		cancel: cancel,
@@ -54,12 +54,12 @@ func NewEDKVS(o Options, m Metric) (*EDKVS, error) {
 }
 
 // ListenURL returns the listen url.
-func (e *EDKVS) ListenURL() string {
-	return e.server.ListenURL()
+func (n *Node) ListenURL() string {
+	return n.server.ListenURL()
 }
 
 // Close tears down the EDKVS.
-func (e *EDKVS) Close() error {
-	e.cancel()
-	return e.server.Close()
+func (n *Node) Close() error {
+	n.cancel()
+	return n.server.Close()
 }
