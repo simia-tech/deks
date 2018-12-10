@@ -38,8 +38,8 @@ quit              - closes the connection
 `
 )
 
-// Node defines a edkvs node.
-type Node struct {
+// Server defines a kea server.
+type Server struct {
 	store    *Store
 	listener net.Listener
 	metric   Metric
@@ -47,8 +47,8 @@ type Node struct {
 	streams  []*stream
 }
 
-// NewNode returns a new node.
-func NewNode(store *Store, listenURL string, m Metric) (*Node, error) {
+// NewServer returns a new server.
+func NewServer(store *Store, listenURL string, m Metric) (*Server, error) {
 	network, address, err := parseURL(listenURL)
 	if err != nil {
 		return nil, errx.Annotatef(err, "parse listen url [%s]", listenURL)
@@ -58,35 +58,34 @@ func NewNode(store *Store, listenURL string, m Metric) (*Node, error) {
 	if err != nil {
 		return nil, errx.Annotatef(err, "listen [%s %s]", network, address)
 	}
-	// log.Printf("node is listening at [%s %s]", l.Addr().Network(), l.Addr().String())
 
 	settings := recon.DefaultSettings()
 	peer := recon.NewPeer(settings, store.State().prefixTree())
 
-	n := &Node{
+	s := &Server{
 		store:    store,
 		listener: l,
 		metric:   m,
 		peer:     peer,
 		streams:  make([]*stream, 0),
 	}
-	store.updateFn = n.update
-	go n.acceptLoop()
-	return n, nil
+	store.updateFn = s.update
+	go s.acceptLoop()
+	return s, nil
 }
 
 // ListenURL returns the url of the listener.
-func (n *Node) ListenURL() string {
-	addr := n.listener.Addr()
+func (s *Server) ListenURL() string {
+	addr := s.listener.Addr()
 	return fmt.Sprintf("%s://%s", addr.Network(), addr.String())
 }
 
 // Close tears down the node.
-func (n *Node) Close() error {
-	for _, stream := range n.streams {
+func (s *Server) Close() error {
+	for _, stream := range s.streams {
 		stream.close()
 	}
-	if err := n.listener.Close(); err != nil {
+	if err := s.listener.Close(); err != nil {
 		if isClosedNetworkError(err) {
 			return nil
 		}
@@ -96,16 +95,16 @@ func (n *Node) Close() error {
 }
 
 // AddPeer adds another node as a target for updates.
-func (n *Node) AddPeer(
+func (s *Server) AddPeer(
 	peerURL string,
 	peerPingInterval time.Duration,
 	peerReconnectInterval time.Duration,
 ) {
-	n.streams = append(n.streams, newStream(peerURL, peerPingInterval, peerReconnectInterval, n.metric))
+	s.streams = append(s.streams, newStream(peerURL, peerPingInterval, peerReconnectInterval, s.metric))
 }
 
 // Reconcilate performs a reconsiliation with the node at the provided address.
-func (n *Node) Reconcilate(url string) (int, error) {
+func (s *Server) Reconcilate(url string) (int, error) {
 	conn, err := Dial(url)
 	if err != nil {
 		return 0, errx.Annotatef(err, "dial [%s]", url)
@@ -117,7 +116,7 @@ func (n *Node) Reconcilate(url string) (int, error) {
 		return 0, errx.Annotatef(err, "reconcilate")
 	}
 
-	keyHashes, _, err := n.peer.Reconcilate(netConn, 100)
+	keyHashes, _, err := s.peer.Reconcilate(netConn, 100)
 	if err != nil {
 		return 0, errx.Annotatef(err, "reconcilate")
 	}
@@ -134,7 +133,7 @@ func (n *Node) Reconcilate(url string) (int, error) {
 		if err != nil {
 			return 0, errx.Annotatef(err, "get container")
 		}
-		if err := n.store.setContainer(kh, c); err != nil {
+		if err := s.store.setContainer(kh, c); err != nil {
 			return 0, errx.Annotatef(err, "set container")
 		}
 	}
@@ -142,11 +141,11 @@ func (n *Node) Reconcilate(url string) (int, error) {
 	return len(keyHashes), nil
 }
 
-func (n *Node) acceptLoop() {
+func (s *Server) acceptLoop() {
 	done := false
 	var err error
 	for !done {
-		done, err = n.accept()
+		done, err = s.accept()
 		if err != nil {
 			log.Printf("accept loop: %v", err)
 			done = true
@@ -154,8 +153,8 @@ func (n *Node) acceptLoop() {
 	}
 }
 
-func (n *Node) accept() (bool, error) {
-	conn, err := n.listener.Accept()
+func (s *Server) accept() (bool, error) {
+	conn, err := s.listener.Accept()
 	if err != nil {
 		if isClosedNetworkError(err) {
 			return true, nil
@@ -166,7 +165,7 @@ func (n *Node) accept() (bool, error) {
 	clientURL := urlFor(conn.RemoteAddr())
 
 	go func() {
-		if err := n.handleConn(conn); err != nil {
+		if err := s.handleConn(conn); err != nil {
 			log.Printf("conn %s: %v", conn.RemoteAddr(), err)
 		}
 		if err := conn.Close(); err != nil {
@@ -174,15 +173,15 @@ func (n *Node) accept() (bool, error) {
 				log.Printf("close conn %s: %v", conn.RemoteAddr(), err)
 			}
 		}
-		n.metric.ClientDisconnected(clientURL)
+		s.metric.ClientDisconnected(clientURL)
 	}()
 
-	n.metric.ClientConnected(clientURL)
+	s.metric.ClientConnected(clientURL)
 
 	return false, nil
 }
 
-func (n *Node) handleConn(conn net.Conn) error {
+func (s *Server) handleConn(conn net.Conn) error {
 	r := redisserver.NewReader(conn)
 	w := redisserver.NewWriter(conn)
 
@@ -209,43 +208,43 @@ func (n *Node) handleConn(conn net.Conn) error {
 		case cmdPing:
 			w.WriteString("OK")
 		case cmdSet:
-			if err := n.store.Set(arguments[0], arguments[1]); err != nil {
+			if err := s.store.Set(arguments[0], arguments[1]); err != nil {
 				return errx.Annotatef(err, "set")
 			}
 			w.WriteString("OK")
 		case cmdGet:
-			value, err := n.store.Get(arguments[0])
+			value, err := s.store.Get(arguments[0])
 			if err != nil {
 				return errx.Annotatef(err, "get [%s]", arguments[0])
 			}
 			w.WriteBulk(value)
 		case cmdDelete:
-			if err := n.store.Delete(arguments[0]); err != nil {
+			if err := s.store.Delete(arguments[0]); err != nil {
 				return errx.Annotatef(err, "delete [%s]", arguments[0])
 			}
 			w.WriteString("OK")
 		case cmdKeys:
-			w.WriteArray(n.store.Len())
-			n.store.Each(func(key, _ []byte) error {
+			w.WriteArray(s.store.Len())
+			s.store.Each(func(key, _ []byte) error {
 				w.WriteBulk(key)
 				return nil
 			})
 		case cmdTidy:
-			if err := n.store.Tidy(); err != nil {
+			if err := s.store.Tidy(); err != nil {
 				return errx.Annotatef(err, "tidy")
 			}
 			w.WriteString("OK")
 		case cmdSetContainer:
 			kh := keyHash{}
 			copy(kh[:], arguments[0][:keyHashSize])
-			if err := n.store.setContainer(kh, arguments[1]); err != nil {
+			if err := s.store.setContainer(kh, arguments[1]); err != nil {
 				return errx.Annotatef(err, "set container [%s]", kh)
 			}
 			w.WriteString("OK")
 		case cmdGetContainer:
 			kh := keyHash{}
 			copy(kh[:], arguments[0][:keyHashSize])
-			c, err := n.store.getContainer(kh)
+			c, err := s.store.getContainer(kh)
 			if err != nil {
 				return errx.Annotatef(err, "get container [%s]", kh)
 			}
@@ -255,7 +254,7 @@ func (n *Node) handleConn(conn net.Conn) error {
 			if err := w.Flush(); err != nil {
 				return errx.Annotatef(err, "flush")
 			}
-			if err := n.peer.Accept(conn); err != nil {
+			if err := s.peer.Accept(conn); err != nil {
 				return errx.Annotatef(err, "recon accept")
 			}
 			return nil // exit command loop
@@ -271,8 +270,8 @@ func (n *Node) handleConn(conn net.Conn) error {
 	return nil
 }
 
-func (n *Node) update(kh keyHash, container *container) {
-	for _, stream := range n.streams {
+func (s *Server) update(kh keyHash, container *container) {
+	for _, stream := range s.streams {
 		stream.update(kh, container)
 	}
 }

@@ -9,13 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNodeReconcilateValue(t *testing.T) {
+func TestServerReconcilateValue(t *testing.T) {
 	e := setUpTestEnvironment(t)
 	defer e.tearDown()
 
 	require.NoError(t, e.storeOne.Set(testKey, testValue))
 
-	count, err := e.nodeTwo.Reconcilate(e.nodeOne.ListenURL())
+	count, err := e.serverTwo.Reconcilate(e.serverOne.ListenURL())
 	require.NoError(t, err)
 	assert.Equal(t, 1, count)
 
@@ -25,7 +25,7 @@ func TestNodeReconcilateValue(t *testing.T) {
 	assert.Equal(t, testValue, value)
 }
 
-func TestNodeReconcilateDeletedValue(t *testing.T) {
+func TestServerReconcilateDeletedValue(t *testing.T) {
 	e := setUpTestEnvironment(t)
 	defer e.tearDown()
 
@@ -33,7 +33,7 @@ func TestNodeReconcilateDeletedValue(t *testing.T) {
 	require.NoError(t, e.storeOne.Delete(testKey))
 	assert.Equal(t, 0, e.storeOne.Len())
 
-	count, err := e.nodeTwo.Reconcilate(e.nodeOne.ListenURL())
+	count, err := e.serverTwo.Reconcilate(e.serverOne.ListenURL())
 	require.NoError(t, err)
 	assert.Equal(t, 1, count)
 
@@ -43,7 +43,7 @@ func TestNodeReconcilateDeletedValue(t *testing.T) {
 	assert.Nil(t, value)
 }
 
-func TestNodeReconcilateUpdatedValue(t *testing.T) {
+func TestServerReconcilateUpdatedValue(t *testing.T) {
 	e := setUpTestEnvironment(t)
 	defer e.tearDown()
 
@@ -54,7 +54,7 @@ func TestNodeReconcilateUpdatedValue(t *testing.T) {
 	require.NoError(t, e.storeTwo.Set(testKey, testValue))
 	assert.Equal(t, 1, e.storeTwo.Len())
 
-	count, err := e.nodeTwo.Reconcilate(e.nodeOne.ListenURL())
+	count, err := e.serverTwo.Reconcilate(e.serverOne.ListenURL())
 	require.NoError(t, err)
 	assert.Equal(t, 1, count)
 
@@ -64,11 +64,11 @@ func TestNodeReconcilateUpdatedValue(t *testing.T) {
 	assert.Equal(t, testAnotherValue, value)
 }
 
-func TestNodeStreamUpdatesToAnotherNode(t *testing.T) {
+func TestServerStreamUpdatesToAnotherNode(t *testing.T) {
 	e := setUpTestEnvironment(t)
 	defer e.tearDown()
 
-	e.nodeOne.AddPeer(e.nodeTwo.ListenURL(), time.Minute, time.Minute)
+	e.serverOne.AddPeer(e.serverTwo.ListenURL(), time.Minute, time.Minute)
 	time.Sleep(100 * time.Millisecond)
 
 	require.NoError(t, e.storeOne.Set(testKey, testValue))
@@ -80,16 +80,16 @@ func TestNodeStreamUpdatesToAnotherNode(t *testing.T) {
 	assert.Equal(t, testValue, value)
 }
 
-func TestNodeStreamUpdatesToTwoOtherNodes(t *testing.T) {
+func TestServerStreamUpdatesToTwoOtherNodes(t *testing.T) {
 	e := setUpTestEnvironment(t)
 	defer e.tearDown()
 
 	storeThree := edkvs.NewStore(e.metric)
-	nodeThree, err := edkvs.NewNode(storeThree, "tcp://localhost:0", e.metric)
+	serverThree, err := edkvs.NewServer(storeThree, "tcp://localhost:0", e.metric)
 	require.NoError(t, err)
 
-	e.nodeOne.AddPeer(e.nodeTwo.ListenURL(), time.Minute, time.Minute)
-	e.nodeOne.AddPeer(nodeThree.ListenURL(), time.Minute, time.Minute)
+	e.serverOne.AddPeer(e.serverTwo.ListenURL(), time.Minute, time.Minute)
+	e.serverOne.AddPeer(serverThree.ListenURL(), time.Minute, time.Minute)
 	time.Sleep(100 * time.Millisecond)
 
 	require.NoError(t, e.storeOne.Set(testKey, testValue))
@@ -106,14 +106,14 @@ func TestNodeStreamUpdatesToTwoOtherNodes(t *testing.T) {
 	assert.Equal(t, testValue, value)
 }
 
-func TestNodeStreamUpdatesToAFailingNode(t *testing.T) {
+func TestServerStreamUpdatesToAFailingNode(t *testing.T) {
 	e := setUpTestEnvironment(t)
 	defer e.tearDown()
 
-	listenURL := e.nodeTwo.ListenURL()
-	require.NoError(t, e.nodeTwo.Close())
+	listenURL := e.serverTwo.ListenURL()
+	require.NoError(t, e.serverTwo.Close())
 
-	e.nodeOne.AddPeer(listenURL, time.Minute, time.Minute)
+	e.serverOne.AddPeer(listenURL, time.Minute, time.Minute)
 	time.Sleep(100 * time.Millisecond)
 
 	require.NoError(t, e.storeOne.Set(testKey, testValue))
