@@ -1,4 +1,4 @@
-package kea
+package deks
 
 // MetricMock defines a metric mock.
 type MetricMock struct{}

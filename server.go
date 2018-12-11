@@ -1,4 +1,4 @@
-package kea
+package deks
 
 import (
 	"fmt"
@@ -38,7 +38,7 @@ quit              - closes the connection
 `
 )
 
-// Server defines a kea server.
+// Server defines a server.
 type Server struct {
 	store    *Store
 	listener net.Listener

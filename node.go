@@ -1,4 +1,4 @@
-package kea
+package deks
 
 import (
 	"context"
@@ -8,14 +8,14 @@ import (
 	"github.com/simia-tech/errx"
 )
 
-// Node defines the kea node.
+// Node defines the node.
 type Node struct {
 	Store  *Store
 	server *Server
 	cancel context.CancelFunc
 }
 
-// NewNode returns a new kea node.
+// NewNode returns a new node.
 func NewNode(o Options, m Metric) (*Node, error) {
 	store := NewStore(m)
 	server, err := NewServer(store, o.ListenURL, m)
@@ -58,7 +58,7 @@ func (n *Node) ListenURL() string {
 	return n.server.ListenURL()
 }
 
-// Close tears down the EDKVS.
+// Close tears down the node.
 func (n *Node) Close() error {
 	n.cancel()
 	return n.server.Close()

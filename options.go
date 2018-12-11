@@ -1,8 +1,8 @@
-package kea
+package deks
 
 import "time"
 
-// Options defines all edkvs options.
+// Options defines all deks options.
 type Options struct {
 	// Listener address in format 'tcp://localhost:5000'.
 	ListenURL string

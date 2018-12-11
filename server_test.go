@@ -1,4 +1,4 @@
-package kea_test
+package deks_test
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/simia-tech/kea"
+	"github.com/simia-tech/deks"
 )
 
 func TestServerReconcilateValue(t *testing.T) {
@@ -85,8 +85,8 @@ func TestServerStreamUpdatesToTwoOtherNodes(t *testing.T) {
 	e := setUpTestEnvironment(t)
 	defer e.tearDown()
 
-	storeThree := kea.NewStore(e.metric)
-	serverThree, err := kea.NewServer(storeThree, "tcp://localhost:0", e.metric)
+	storeThree := deks.NewStore(e.metric)
+	serverThree, err := deks.NewServer(storeThree, "tcp://localhost:0", e.metric)
 	require.NoError(t, err)
 
 	e.serverOne.AddPeer(e.serverTwo.ListenURL(), time.Minute, time.Minute)

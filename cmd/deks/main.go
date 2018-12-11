@@ -7,7 +7,8 @@ import (
 	"time"
 
 	flags "github.com/jessevdk/go-flags"
-	"github.com/simia-tech/edkvs"
+
+	"github.com/simia-tech/deks"
 )
 
 type options struct {
@@ -32,25 +33,23 @@ func main() {
 		}
 	}
 
-	m := edkvs.NewMetricLog()
-
-	edkvs, err := edkvs.NewEDKVS(edkvs.Options{
+	deks, err := deks.NewNode(deks.Options{
 		ListenURL:             opts.ListenURL,
 		PeerURLs:              opts.PeerURLs,
 		PeerPingInterval:      opts.PeerPingInterval,
 		PeerReconnectInterval: opts.PeerReconnectInterval,
 		TidyInterval:          opts.TidyInterval,
-	}, m)
+	}, deks.NewMetricLog())
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("node is listing at %s", edkvs.ListenURL())
+	log.Printf("node is listing at %s", deks.ListenURL())
 
 	ch := make(chan os.Signal)
 	signal.Notify(ch, os.Interrupt)
 	<-ch
 
-	if err := edkvs.Close(); err != nil {
+	if err := deks.Close(); err != nil {
 		log.Fatal(err)
 	}
 	log.Printf("node shut down")

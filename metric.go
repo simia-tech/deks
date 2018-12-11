@@ -1,6 +1,6 @@
-package kea
+package deks
 
-// Metric defines the EDKVS metric interface.
+// Metric defines the metric interface.
 type Metric interface {
 	CountChanged(int, int)
 	ClientConnected(string)

@@ -1,4 +1,4 @@
-package kea_test
+package deks_test
 
 import (
 	"testing"
@@ -6,18 +6,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/simia-tech/kea"
+	"github.com/simia-tech/deks"
 )
 
 func TestSetInsert(t *testing.T) {
-	set := kea.NewSet()
+	set := deks.NewSet()
 	require.NoError(t, set.Insert(testItem))
 	assert.Equal(t, 1, set.Len())
-	assert.Equal(t, []kea.Item{testItem}, set.Items())
+	assert.Equal(t, []deks.Item{testItem}, set.Items())
 }
 
 func TestSetRemove(t *testing.T) {
-	set := kea.NewSet()
+	set := deks.NewSet()
 	require.NoError(t, set.Insert(testItem))
 	require.NoError(t, set.Remove(testItem))
 	assert.Equal(t, 0, set.Len())

@@ -1,4 +1,4 @@
-package kea
+package deks
 
 import (
 	"net"
@@ -7,7 +7,7 @@ import (
 	"github.com/simia-tech/errx"
 )
 
-// Conn implements a edkvs client connection based on the redis protocol.
+// Conn implements a client connection based on the redis protocol.
 type Conn struct {
 	conn   net.Conn
 	client *redis.Client
