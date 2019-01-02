@@ -1,6 +1,8 @@
 package deks_test
 
 import (
+	"math/rand"
+	"sync"
 	"testing"
 	"time"
 
@@ -121,4 +123,33 @@ func TestServerStreamUpdatesToAFailingNode(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	assert.Equal(t, 0, e.storeTwo.Len())
+}
+
+func TestServerConcurrentStreamAddAndRemove(t *testing.T) {
+	e := setUpTestEnvironment(t)
+	defer e.tearDown()
+
+	listenURL := e.serverTwo.ListenURL()
+	require.NoError(t, e.serverTwo.Close())
+
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+
+	go func() {
+		for index := 0; index < 20; index++ {
+			e.serverOne.AddPeer(listenURL, time.Minute, time.Minute)
+			time.Sleep(time.Duration(rand.Intn(100)) * time.Millisecond)
+		}
+		wg.Done()
+	}()
+
+	go func() {
+		for index := 0; index < 20; index++ {
+			e.serverOne.RemovePeer(listenURL)
+			time.Sleep(time.Duration(rand.Intn(100)) * time.Millisecond)
+		}
+		wg.Done()
+	}()
+
+	wg.Wait()
 }

@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/simia-tech/conflux/recon"
@@ -22,29 +23,36 @@ const (
 	cmdGet          = "get"
 	cmdDelete       = "del"
 	cmdKeys         = "keys"
+	cmdPeerAdd      = "padd"
+	cmdPeerRemove   = "pdel"
+	cmdPeerList     = "plist"
 	cmdTidy         = "tidy"
 	cmdSetContainer = "cset"        // hidden
 	cmdGetContainer = "cget"        // hidden
 	cmdReconcilate  = "reconcilate" // hidden
 
 	help = `Supported commands:
-help              - prints this help message
-set <key> <value> - sets <value> at <key>
-get <key>         - returns value at <key>
-del <key>         - removes value at <key>
-keys              - returns all keys
-tidy              - cleans up the store
-quit              - closes the connection
+help                                            - prints this help message
+set <key> <value>                               - sets <value> at <key>
+get <key>                                       - returns value at <key>
+del <key>                                       - removes value at <key>
+keys                                            - returns all keys
+padd <url> <ping interval> <reconnect interval> - adds a peer with <url>
+pdel <url>                                      - removes the peer with <url>
+plist                                           - returns all peer urls
+tidy                                            - cleans up the store
+quit                                            - closes the connection
 `
 )
 
 // Server defines a server.
 type Server struct {
-	store    *Store
-	listener net.Listener
-	metric   Metric
-	peer     *recon.Peer
-	streams  []*stream
+	store        *Store
+	listener     net.Listener
+	metric       Metric
+	peer         *recon.Peer
+	streams      map[string]*stream
+	streamsMutex sync.RWMutex
 }
 
 // NewServer returns a new server.
@@ -67,7 +75,7 @@ func NewServer(store *Store, listenURL string, m Metric) (*Server, error) {
 		listener: l,
 		metric:   m,
 		peer:     peer,
-		streams:  make([]*stream, 0),
+		streams:  make(map[string]*stream, 0),
 	}
 	store.updateFn = s.update
 	go s.acceptLoop()
@@ -99,8 +107,40 @@ func (s *Server) AddPeer(
 	peerURL string,
 	peerPingInterval time.Duration,
 	peerReconnectInterval time.Duration,
-) {
-	s.streams = append(s.streams, newStream(peerURL, peerPingInterval, peerReconnectInterval, s.metric))
+) error {
+	s.streamsMutex.Lock()
+	if _, ok := s.streams[peerURL]; ok {
+		s.streamsMutex.Unlock()
+		return errx.AlreadyExistsf("peer with url [%s] already exists", peerURL)
+	}
+	s.streams[peerURL] = newStream(peerURL, peerPingInterval, peerReconnectInterval, s.metric)
+	s.streamsMutex.Unlock()
+	return nil
+}
+
+// RemovePeer removes the peer with the provided url.
+func (s *Server) RemovePeer(peerURL string) error {
+	s.streamsMutex.Lock()
+	stream, ok := s.streams[peerURL]
+	if !ok {
+		s.streamsMutex.Unlock()
+		return errx.NotFoundf("no peer with url [%s] found", peerURL)
+	}
+	stream.close()
+	delete(s.streams, peerURL)
+	s.streamsMutex.Unlock()
+	return nil
+}
+
+// PeerURLs returns a slice of strings containing all peers urls.
+func (s *Server) PeerURLs() []string {
+	result := []string{}
+	s.streamsMutex.RLock()
+	for peerURL := range s.streams {
+		result = append(result, peerURL)
+	}
+	s.streamsMutex.RUnlock()
+	return result
 }
 
 // Reconcilate performs a reconsiliation with the node at the provided address.
@@ -229,6 +269,30 @@ func (s *Server) handleConn(conn net.Conn) error {
 				w.WriteBulk(key)
 				return nil
 			})
+		case cmdPeerAdd:
+			pingInterval, err := time.ParseDuration(string(arguments[1]))
+			if err != nil {
+				return errx.Annotatef(err, "parse duration [%s]", arguments[1])
+			}
+			reconnectInterval, err := time.ParseDuration(string(arguments[2]))
+			if err != nil {
+				return errx.Annotatef(err, "parse duration [%s]", arguments[2])
+			}
+			if err := s.AddPeer(string(arguments[0]), pingInterval, reconnectInterval); err != nil {
+				return errx.Annotatef(err, "peer add [%s %s %s]", arguments[0], pingInterval, reconnectInterval)
+			}
+			w.WriteString("OK")
+		case cmdPeerRemove:
+			if err := s.RemovePeer(string(arguments[0])); err != nil {
+				return errx.Annotatef(err, "peer remove [%s]", arguments[0])
+			}
+			w.WriteString("OK")
+		case cmdPeerList:
+			peerURLs := s.PeerURLs()
+			w.WriteArray(len(peerURLs))
+			for _, peerURL := range peerURLs {
+				w.WriteString(peerURL)
+			}
 		case cmdTidy:
 			if err := s.store.Tidy(); err != nil {
 				return errx.Annotatef(err, "tidy")
@@ -271,9 +335,11 @@ func (s *Server) handleConn(conn net.Conn) error {
 }
 
 func (s *Server) update(kh keyHash, container *container) {
+	s.streamsMutex.RLock()
 	for _, stream := range s.streams {
 		stream.update(kh, container)
 	}
+	s.streamsMutex.RUnlock()
 }
 
 func parseURL(u string) (string, string, error) {
