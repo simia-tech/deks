@@ -27,7 +27,9 @@ func NewNode(o Options, m Metric) (*Node, error) {
 		if err != nil {
 			log.Printf("reconsilate: %v", err)
 		}
-		server.AddPeer(peerURL, o.PeerPingInterval, o.PeerReconnectInterval)
+		if err := server.AddPeer(peerURL, o.PeerPingInterval, o.PeerReconnectInterval); err != nil {
+			return nil, errx.Annotatef(err, "peer add")
+		}
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
